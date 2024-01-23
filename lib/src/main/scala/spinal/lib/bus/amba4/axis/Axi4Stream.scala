@@ -36,7 +36,7 @@ object Axi4Stream {
     val keep = (config.useKeep) generate Bits(config.dataWidth bit)
     val last = (config.useLast) generate Bool()
     val dest = (config.useDest) generate UInt(config.destWidth bit)
-    val user = (config.useUser) generate Bits(config.userWidth*config.dataWidth bit)
+    val user = (config.useUser) generate Bits(config.userWidth bit)
 
     def isLast = if (this.last != null) this.last else False
 
