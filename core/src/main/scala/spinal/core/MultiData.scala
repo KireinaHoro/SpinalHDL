@@ -103,6 +103,11 @@ abstract class MultiData extends Data {
     this
   }
 
+  def setOutputAsReg(): this.type = {
+    elements.filter(_._2.dir == out).foreach(_._2.setAsReg())
+    this
+  }
+
   /** Set baseType to Combinatorial */
   override def setAsComb(): this.type = {
     elements.foreach(_._2.setAsComb())
