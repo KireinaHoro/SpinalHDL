@@ -9,6 +9,7 @@ object BufferCC {
   def apply[T <: Data](input: T, init: => T = null, bufferDepth: Option[Int] = None, randBoot : Boolean = false, inputAttributes: Seq[SpinalTag] = List()): T = {
     val c = new BufferCC(input, init, bufferDepth, randBoot, inputAttributes)
     c.setCompositeName(input, "buffercc", true)
+    // keep hierarchy for timing constraint generation
     c.io.dataIn := input
 
     val ret = cloneOf(c.io.dataOut)
@@ -71,6 +72,8 @@ class BufferCC[T <: Data](val dataType: T, init :  => T, val bufferDepth: Option
   }
 
   io.dataOut := buffers.last
+  
+  addAttribute("keep_hierarchy", "TRUE")
 }
 
 
