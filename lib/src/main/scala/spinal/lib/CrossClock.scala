@@ -101,7 +101,7 @@ class PulseCCByToggle(clockIn: ClockDomain, clockOut: ClockDomain, withOutputBuf
 
   val finalOutputClock = clockOut.withOptionalBufferedResetFrom(withOutputBufferedReset)(clockIn)
   val outArea = finalOutputClock on new Area {
-    val target = BufferCC(inArea.target, False)
+    val target = BufferCC(inArea.target, False, inputAttributes = List(crossClockFalsePath))
 
     io.pulseOut := target.edge(False)
   }

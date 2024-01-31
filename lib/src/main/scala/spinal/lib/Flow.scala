@@ -130,7 +130,10 @@ class Flow[T <: Data](val payloadType: HardType[T]) extends Bundle with IMasterS
       val ret = RegNext(this)
       ret.valid.init(False)
       if(flush != null) when(flush){ ret.valid := False }
-      if(crossClockData) ret.payload.addTag(crossClockDomain)
+      if(crossClockData) {
+        ret.payload.addTag(crossClockDomain)
+        ret.payload.addTag(new crossClockMaxDelay(2, true))
+      }
       ret
     } else {
       val ret = Reg(this)
@@ -140,7 +143,10 @@ class Flow[T <: Data](val payloadType: HardType[T]) extends Bundle with IMasterS
         ret.payload := this.payload
       }
       if(flush != null) when(flush){ ret.valid := False }
-      if(crossClockData) ret.payload.addTag(crossClockDomain)
+      if(crossClockData) {
+        ret.payload.addTag(crossClockDomain)
+        ret.payload.addTag(new crossClockMaxDelay(2, true))
+      }
       ret
     }.setCompositeName(this, "m2sPipe", true)
   }

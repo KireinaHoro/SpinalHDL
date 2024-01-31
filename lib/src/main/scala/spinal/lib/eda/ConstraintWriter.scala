@@ -71,19 +71,10 @@ object ConstraintWriter {
                     |set dst_clk [get_clocks -quiet -of [get_ports ${target.component.getRtlPath() + "/" + target.clockDomain.clock.getName()}]]
                     |set src_clk_period [get_property -quiet -min PERIOD $$src_clk]
                     |set dst_clk_period [get_property -quiet -min PERIOD $$dst_clk]
-                    |if {$$src_clk == ""} {
-                    |  set src_clk_period 1000
-                    |}
-                    |if {$$dst_clk == ""} {
-                    |  set dst_clk_period 1001
-                    |}
                     |
                     |${findDriverCell(source.getRtlPath())}
-                    |
-                    |if {($$src_clk != $$dst_clk) || ($$src_clk == "" && $$dst_clk == "")} {
-                    |  set_max_delay -from $$source -to [get_pins ${target.getRtlPath()}_reg*/D] $$src_clk_period -datapath_only
-                    |  set_bus_skew -from $$source -to [get_pins ${target.getRtlPath()}_reg*/D] [expr min ($$src_clk_period, $$dst_clk_period)]
-                    |}
+                    |set_max_delay -from $$source -to [get_pins ${target.getRtlPath()}_reg*/D] $$src_clk_period -datapath_only
+                    |set_bus_skew -from $$source -to [get_pins ${target.getRtlPath()}_reg*/D] [expr min ($$src_clk_period, $$dst_clk_period)]
                     |# TODO waive warning
                     |""".stripMargin)
   }
