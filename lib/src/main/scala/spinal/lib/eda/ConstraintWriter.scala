@@ -16,7 +16,15 @@ object ConstraintWriter {
       f"${GlobalData.get.phaseContext.config.targetDirectory}/${c.getClass.getSimpleName}.tcl"
     )
     val writer = new PrintWriter(new File(realFilename))
+    writer.write(
+      s"""
+         |foreach inst [get_cells -hier -filter {(ORIG_REF_NAME == ${c.getName()} || REF_NAME == ${c.getName()})}] {
+         |""".stripMargin)
     c.walkComponents(cc => cc.dslBody.walkStatements(doWalkStatements(_, writer)))
+    writer.write(
+      s"""
+         |}
+         |""".stripMargin)
     writer.close()
     c
   }
@@ -67,10 +75,10 @@ object ConstraintWriter {
     writer.write(s"""
                     |# CDC constraints for ${s.source.toString} -> ${s.target.toString} in ${s.component.getPath()}
                     |# source: ${s.locationString}
-                    |set src_clk [get_clocks -quiet -of [get_ports ${source.component.getRtlPath() + "/" + source.clockDomain.clock.getName()}]]
-                    |set dst_clk [get_clocks -quiet -of [get_ports ${target.component.getRtlPath() + "/" + target.clockDomain.clock.getName()}]]
-                    |set src_clk_period [get_property -quiet -min PERIOD $$src_clk]
-                    |set dst_clk_period [get_property -quiet -min PERIOD $$dst_clk]
+                    |set src_clk [get_clocks -quiet -of [get_pins ${source.component.getRtlPath() + "/" + source.clockDomain.clock.getName()}]]
+                    |set dst_clk [get_clocks -quiet -of [get_pins ${target.component.getRtlPath() + "/" + target.clockDomain.clock.getName()}]]
+                    |set src_clk_period [if {[llength $$src_clk]} {get_property -quiet -min PERIOD $$src_clk} {expr 1.0}]
+                    |set dst_clk_period [if {[llength $$dst_clk]} {get_property -quiet -min PERIOD $$dst_clk} {expr 1.0}]
                     |
                     |${findDriverCell(source.getRtlPath())}
                     |set_max_delay -from $$source -to [get_pins ${target.getRtlPath()}_reg*/D] $$src_clk_period -datapath_only
