@@ -36,7 +36,8 @@ object ConstraintWriter {
 
   def findDriverCell(s: String, destVar: String = "source"): String =
     s"""
-       |set net [get_nets -segments -of_objects {$s}]
+       |set pin [get_pins {$s}]
+       |set net [get_nets -segments -of_objects $$pin]
        |set source_pins [get_pins -of_objects $$net -filter {IS_LEAF && DIRECTION == OUT}]
        |set $destVar [get_cells -of_objects $$source_pins]
        |""".stripMargin
