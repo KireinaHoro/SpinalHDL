@@ -6,8 +6,8 @@ import scala.collection.Seq
 import scala.collection.mutable.ArrayBuffer
 
 object BufferCC {
-  def apply[T <: Data](input: T, init: => T = null, bufferDepth: Option[Int] = None, randBoot : Boolean = false): T = {
-    val c = new BufferCC(input, init, bufferDepth, randBoot)
+  def apply[T <: Data](input: T, init: => T = null, bufferDepth: Option[Int] = None, randBoot : Boolean = false, inputAttributes: Seq[SpinalTag] = List()): T = {
+    val c = new BufferCC(input, init, bufferDepth, randBoot, inputAttributes)
     c.setCompositeName(input, "buffercc", true)
     c.io.dataIn := input
 
@@ -49,7 +49,7 @@ object BufferCC {
   }
 }
 
-class BufferCC[T <: Data](val dataType: T, init :  => T, val bufferDepth: Option[Int], val  randBoot : Boolean = false) extends Component {
+class BufferCC[T <: Data](val dataType: T, init :  => T, val bufferDepth: Option[Int], val  randBoot : Boolean = false, inputAttributes: Seq[SpinalTag] = List()) extends Component {
   def getInit() : T = init
   val finalBufferDepth = BufferCC.defaultDepthOptioned(ClockDomain.current, bufferDepth)
   assert(finalBufferDepth >= 1)
@@ -64,6 +64,7 @@ class BufferCC[T <: Data](val dataType: T, init :  => T, val bufferDepth: Option
 
   buffers(0) := io.dataIn
   buffers(0).addTag(crossClockDomain)
+  inputAttributes.foreach(buffers(0).addTag)
   for (i <- 1 until finalBufferDepth) {
     buffers(i) := buffers(i - 1)
     buffers(i).addTag(crossClockBuffer)
