@@ -43,7 +43,7 @@ object ConstraintWriter {
     writer.write(s"""
                     |# CDC constaints for ${s.source.toString} -> ${s.target.toString} in ${s.component.getPath()}
                     |# source: ${s.locationString}
-                    |set_false_path -from [get_cells ${source.getRtlPath()}] -to [get_pins ${target.getRtlPath()}_reg*/D]
+                    |set_false_path -from [get_pins ${source.getRtlPath()}] -to [get_pins ${target.getRtlPath()}_reg*/D]
                     |""".stripMargin)
 
   }
@@ -70,8 +70,8 @@ object ConstraintWriter {
                     |}
                     |
                     |if {($$src_clk != $$dst_clk) || ($$src_clk == "" && $$dst_clk == "")} {
-                    |  set_max_delay -from [get_cells ${source.getRtlPath()}] -to [get_cells ${target.getRtlPath()}_reg*/D] $$src_clk_period -datapath_only
-                    |  set_bus_skew -from [get_cells ${source.getRtlPath()}] -to [get_cells ${target.getRtlPath()}_reg*/D] [expr min ($$src_clk_period, $$dst_clk_period)]
+                    |  set_max_delay -from [get_pins ${source.getRtlPath()}] -to [get_pins ${target.getRtlPath()}_reg*/D] $$src_clk_period -datapath_only
+                    |  set_bus_skew -from [get_pins ${source.getRtlPath()}] -to [get_pins ${target.getRtlPath()}_reg*/D] [expr min ($$src_clk_period, $$dst_clk_period)]
                     |}
                     |# TODO waive warning
                     |""".stripMargin)

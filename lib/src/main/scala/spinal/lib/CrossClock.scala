@@ -72,7 +72,7 @@ class BufferCC[T <: Data](val dataType: T, init :  => T, val bufferDepth: Option
   }
 
   io.dataOut := buffers.last
-  
+
   addAttribute("keep_hierarchy", "TRUE")
 }
 
