@@ -16,15 +16,6 @@ object ConstraintWriter {
       f"${GlobalData.get.phaseContext.config.targetDirectory}/${c.getClass.getSimpleName}.tcl"
     )
     val writer = new PrintWriter(new File(realFilename))
-    writer.write(
-      s"""
-         |proc get_driver_cells {dest_pins} {
-         |  set net [get_nets -segments -of_objects $$dest_pins]
-         |  set source_pins [get_pins -of_objects $$net -filter {IS_LEAF && DIRECTION == OUT}]
-         |  return [get_cells -of_objects $$source_pins]
-         |}
-         |
-         |""".stripMargin)
     c.walkComponents(cc => cc.dslBody.walkStatements(doWalkStatements(_, writer)))
     writer.close()
     c
@@ -43,6 +34,13 @@ object ConstraintWriter {
     }
   }
 
+  def findDriverCell(s: String, destVar: String = "source"): String =
+    s"""
+       |set net [get_nets -segments -of_objects {$s}]
+       |set source_pins [get_pins -of_objects $$net -filter {IS_LEAF && DIRECTION == OUT}]
+       |set $destVar [get_cells -of_objects $$source_pins]
+       |""".stripMargin
+
   // see https://docs.xilinx.com/r/en-US/ug835-vivado-tcl-commands/set_false_path
   def writeFalsePath(s: DataAssignmentStatement, writer: Writer): Unit = {
     val source = s.source.asInstanceOf[BaseType]
@@ -52,7 +50,8 @@ object ConstraintWriter {
     writer.write(s"""
                     |# CDC constaints for ${s.source.toString} -> ${s.target.toString} in ${s.component.getPath()}
                     |# source: ${s.locationString}
-                    |set_false_path -from [get_driver_cells ${source.getRtlPath()}] -to [get_pins ${target.getRtlPath()}_reg*/D]
+                    |${findDriverCell(source.getRtlPath())}
+                    |set_false_path -from $$source -to [get_pins ${target.getRtlPath()}_reg*/D]
                     |""".stripMargin)
 
   }
@@ -78,9 +77,11 @@ object ConstraintWriter {
                     |  set dst_clk_period 1001
                     |}
                     |
+                    |${findDriverCell(source.getRtlPath())}
+                    |
                     |if {($$src_clk != $$dst_clk) || ($$src_clk == "" && $$dst_clk == "")} {
-                    |  set_max_delay -from [get_driver_cells ${source.getRtlPath()}] -to [get_pins ${target.getRtlPath()}_reg*/D] $$src_clk_period -datapath_only
-                    |  set_bus_skew -from [get_driver_cells ${source.getRtlPath()}] -to [get_pins ${target.getRtlPath()}_reg*/D] [expr min ($$src_clk_period, $$dst_clk_period)]
+                    |  set_max_delay -from $$source -to [get_pins ${target.getRtlPath()}_reg*/D] $$src_clk_period -datapath_only
+                    |  set_bus_skew -from $$source -to [get_pins ${target.getRtlPath()}_reg*/D] [expr min ($$src_clk_period, $$dst_clk_period)]
                     |}
                     |# TODO waive warning
                     |""".stripMargin)
