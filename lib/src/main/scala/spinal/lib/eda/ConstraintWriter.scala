@@ -93,15 +93,14 @@ object ConstraintWriter {
     writer.write(s"""
                     |# CDC constraints for ${s.source.toString} -> ${s.target.toString} in ${s.component.getPath()}
                     |# source: ${s.locationString}
-                    |set src_clk [get_clocks -quiet -of [get_pins ${source.component.getRtlPath() + "/" + source.clockDomain.clock.getName()}]]
-                    |set dst_clk [get_clocks -quiet -of [get_pins ${target.component.getRtlPath() + "/" + target.clockDomain.clock.getName()}]]
-                    |set src_clk_period [get_property -quiet -min PERIOD $$src_clk]
-                    |set dst_clk_period [get_property -quiet -min PERIOD $$dst_clk]
+                    |set src_clk [get_clocks -of [get_pins ${source.component.getRtlPath() + "/" + source.clockDomain.clock.getName()}]]
+                    |set dst_clk [get_clocks -of [get_pins ${target.component.getRtlPath() + "/" + target.clockDomain.clock.getName()}]]
+                    |set src_clk_period [get_property -min PERIOD $$src_clk]
+                    |set dst_clk_period [get_property -min PERIOD $$dst_clk]
                     |
                     |${findDriverCell(source.getRtlPath())}
                     |set_max_delay -from $$source -to [get_pins ${target.getRtlPath()}_reg*/D] $$src_clk_period -datapath_only
                     |set_bus_skew -from $$source -to [get_pins ${target.getRtlPath()}_reg*/D] [expr min ($$src_clk_period, $$dst_clk_period)]
-                    |# TODO waive warning
                     |""".stripMargin)
   }
 
