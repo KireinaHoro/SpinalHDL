@@ -1,10 +1,12 @@
 package spinal.lib.eda
 
+import spinal.core.ClockDomain.FixedFrequency
 import spinal.core.internals._
 import spinal.core.{crossClockMaxDelay, _}
 
 import java.io.{File, PrintWriter, Writer}
 import scala.language.postfixOps
+import scala.collection.mutable
 
 object ConstraintWriter {
   def apply[T <: Component](
@@ -18,7 +20,31 @@ object ConstraintWriter {
     val writer = new PrintWriter(new File(realFilename))
     c.walkComponents(cc => cc.dslBody.walkStatements(doWalkStatements(_, writer)))
     writer.close()
+
+    val oocFilename = realFilename.split('.').tails.collect {
+      case Array(secondLast, _) => secondLast + "_ooc"
+      case Array(other, _*) => other
+    }.mkString(".")
+    val oocWriter = new PrintWriter(new File(oocFilename))
+    c.getAllIo.foreach(doTopLevelPorts(_, oocWriter))
+    oocWriter.close()
+
     c
+  }
+
+  val clockDomainNames = mutable.LinkedHashSet[String]()
+
+  def doTopLevelPorts(s: BaseType, writer: Writer): Unit = {
+    s match {
+      case bool: Bool =>
+        bool.foreachTag {
+          case ClockDomainReportTag(cd) if !clockDomainNames.contains(cd.toString) =>
+            writeClockDef(cd, writer)
+            clockDomainNames.add(cd.toString)
+          case _ =>
+        }
+      case _ =>
+    }
   }
 
   def doWalkStatements(s: Statement, writer: Writer): Unit = {
@@ -77,6 +103,19 @@ object ConstraintWriter {
                     |set_bus_skew -from $$source -to [get_pins ${target.getRtlPath()}_reg*/D] [expr min ($$src_clk_period, $$dst_clk_period)]
                     |# TODO waive warning
                     |""".stripMargin)
+  }
+
+  def writeClockDef(cd: ClockDomain, writer: Writer): Unit = {
+    val name = cd.toString
+    val freqNanos = cd.frequency match {
+      case FixedFrequency(freq) => freq.toTime / (1 ns)
+      case _ => BigDecimal(1)
+    }
+    writer.write(
+      s"""
+         |# Clock definition for $name
+         |create_clock -period $freqNanos -name $name [get_ports $name]
+         |""".stripMargin)
   }
 
   def fullPath(bt: BaseType) = (if (bt.component != null) bt.component.getPath() + "/" else "") + bt.getDisplayName()
