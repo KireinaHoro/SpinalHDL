@@ -61,13 +61,12 @@ object ConstraintWriter {
   }
 
   def findDriverCell(s: String, destVar: String = "source"): String =
-    s"""|set $destVar [get_cells -of_objects [get_pins -of_objects [get_nets -segments {$s}] -filter {IS_LEAF && DIRECTION == OUT}]]""".stripMargin
-
-  def findClockPeriod(s: String, destVar: String = "clk_period"): String = {
-    val driverDest = destVar + "_source"
-    s"""|${findDriverCell(s, driverDest)}
-        |set $destVar [get_property -min PERIOD [set clk [get_clocks -of $$$driverDest]]]""".stripMargin
-  }
+    s"""
+       |set pin [get_pins {$s}]
+       |set net [get_nets -segments -of_objects $$pin]
+       |set source_pins [get_pins -of_objects $$net -filter {IS_LEAF && DIRECTION == OUT}]
+       |set $destVar [get_cells -of_objects $$source_pins]
+       |""".stripMargin
 
   // see https://docs.xilinx.com/r/en-US/ug835-vivado-tcl-commands/set_false_path
   def writeFalsePath(s: DataAssignmentStatement, writer: Writer): Unit = {
@@ -75,12 +74,12 @@ object ConstraintWriter {
     val target = s.target.asInstanceOf[BaseType]
     // TODO trace source to previous FF or input pin
     // TODO fix constraint to find pin
-    writer.write(
-      s"""
-         |# CDC constaints for ${s.source.toString} -> ${s.target.toString} in ${s.component.getPath()}
-         |${findDriverCell(source.getRtlPath())}
-         |set_false_path -from $$source -to [get_pins ${target.getRtlPath()}_reg*/D]
-         |""".stripMargin)
+    writer.write(s"""
+                    |# CDC constaints for ${s.source.toString} -> ${s.target.toString} in ${s.component.getPath()}
+                    |# source: ${s.locationString}
+                    |${findDriverCell(source.getRtlPath())}
+                    |set_false_path -from $$source -to [get_pins ${target.getRtlPath()}_reg*/D]
+                    |""".stripMargin)
 
   }
 
@@ -91,15 +90,18 @@ object ConstraintWriter {
     val target = s.target.asInstanceOf[BaseType]
     // TODO trace source to previous FF
     // TODO fix constraint to find pin
-    writer.write(
-      s"""
-         |# CDC constraints for ${s.source.toString} -> ${s.target.toString} in ${s.component.getPath()}
-         |${findClockPeriod(source.component.getRtlPath() + "/" + source.clockDomain.clock.getName(), "src_clk_period")}
-         |${findClockPeriod(target.component.getRtlPath() + "/" + target.clockDomain.clock.getName(), "dst_clk_period")}
-         |${findDriverCell(source.getRtlPath())}
-         |set_max_delay -from $$source -to [get_pins ${target.getRtlPath()}_reg*/D] $$src_clk_period -datapath_only
-         |set_bus_skew -from $$source -to [get_pins ${target.getRtlPath()}_reg*/D] [expr min ($$src_clk_period, $$dst_clk_period)]
-         |""".stripMargin)
+    writer.write(s"""
+                    |# CDC constraints for ${s.source.toString} -> ${s.target.toString} in ${s.component.getPath()}
+                    |# source: ${s.locationString}
+                    |set src_clk [get_clocks -of [get_pins ${source.component.getRtlPath() + "/" + source.clockDomain.clock.getName()}]]
+                    |set dst_clk [get_clocks -of [get_pins ${target.component.getRtlPath() + "/" + target.clockDomain.clock.getName()}]]
+                    |set src_clk_period [get_property -min PERIOD $$src_clk]
+                    |set dst_clk_period [get_property -min PERIOD $$dst_clk]
+                    |
+                    |${findDriverCell(source.getRtlPath())}
+                    |set_max_delay -from $$source -to [get_pins ${target.getRtlPath()}_reg*/D] $$src_clk_period -datapath_only
+                    |set_bus_skew -from $$source -to [get_pins ${target.getRtlPath()}_reg*/D] [expr min ($$src_clk_period, $$dst_clk_period)]
+                    |""".stripMargin)
   }
 
   def writeClockDef(cd: ClockDomain, writer: Writer): Unit = {
