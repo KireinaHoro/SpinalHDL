@@ -70,7 +70,9 @@ object ConstraintWriter {
 
   def findClockPeriod(cd: ClockDomain, destVar: String = "clk_period"): String =
     s"""
-       |set clk [get_clocks -of [get_nets -hier -filter {NAME =~ */${cd.toString}}]]
+       |set clk_net [get_nets -hier -filter {NAME =~ */${cd.toString}}]
+       |puts "Clock nets: $$clk_net"
+       |set clk [get_clocks -of $$clk_net]
        |set $destVar [get_property -min PERIOD $$clk]
        |""".stripMargin
 
