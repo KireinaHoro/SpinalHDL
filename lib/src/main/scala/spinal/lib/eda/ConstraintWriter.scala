@@ -68,13 +68,11 @@ object ConstraintWriter {
        |set $destVar [get_cells -of_objects $$source_pins]
        |""".stripMargin
 
-  def findClockPeriod(s: String, destVar: String = "clk_period"): String = {
-    val driverDest = destVar + "_source"
+  def findClockPeriod(cd: ClockDomain, destVar: String = "clk_period"): String =
     s"""
-       |${findDriverCell(s, driverDest)}
-       |set $destVar [get_property -min PERIOD [set clk [get_clocks -of $$$driverDest]]]
+       |set clk [get_clocks -of [get_nets -hier -filter {NAME =~ */${cd.toString}}]]
+       |set $destVar [get_property -min PERIOD $$clk]
        |""".stripMargin
-  }
 
   // see https://docs.xilinx.com/r/en-US/ug835-vivado-tcl-commands/set_false_path
   def writeFalsePath(s: DataAssignmentStatement, writer: Writer): Unit = {
@@ -101,11 +99,12 @@ object ConstraintWriter {
     writer.write(
       s"""
          |# CDC constraints for ${s.source.toString} -> ${s.target.toString} in ${s.component.getPath()}
-         |${findClockPeriod(source.component.getRtlPath() + "/" + source.clockDomain.clock.getName(), "src_clk_period")}
-         |${findClockPeriod(target.component.getRtlPath() + "/" + target.clockDomain.clock.getName(), "dst_clk_period")}
+         |# FIXME: this doesn't find the correct clocks!
+         |${findClockPeriod(source.clockDomain, "src_clk_period")}
+         |${findClockPeriod(target.clockDomain, "dst_clk_period")}
          |${findDriverCell(source.getRtlPath())}
          |set_max_delay -from $$source -to [get_pins ${target.getRtlPath()}_reg*/D] $$src_clk_period -datapath_only
-         |set_bus_skew -from $$source -to [get_pins ${target.getRtlPath()}_reg*/D] [expr min ($$src_clk_period, $$dst_clk_period)]
+         |set_bus_skew -from $$source -to [get_pins ${target.getRtlPath()}_reg*/D] $$dst_clk_period
          |""".stripMargin)
   }
 
