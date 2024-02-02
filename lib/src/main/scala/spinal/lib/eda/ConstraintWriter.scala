@@ -8,7 +8,7 @@ import java.io.{File, PrintWriter, Writer}
 import scala.language.postfixOps
 import scala.collection.mutable
 
-object ConstraintWriter {
+private object ConstraintWriter {
   def apply[T <: Component](
                              c: T,
                              filename: String = null,
