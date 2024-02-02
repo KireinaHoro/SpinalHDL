@@ -51,7 +51,8 @@ private object ConstraintWriter {
     s match {
       case da: DataAssignmentStatement =>
         da.target match {
-          case str: SpinalTagReady if str.hasTag(crossClockFalsePath) => writeFalsePath(da, writer)
+          case str: SpinalTagReady if str.hasTag(crossClockFalsePath) =>
+            writeFalsePath(da, writer, str.getTag(classOf[crossClockFalsePathSource]))
           case str: SpinalTagReady if str.hasTag(classOf[crossClockMaxDelay]) =>
             writeMaxDelay(da, str.getTag(classOf[crossClockMaxDelay]).get, writer)
           case _ =>
@@ -76,16 +77,16 @@ private object ConstraintWriter {
        |""".stripMargin
 
   // see https://docs.xilinx.com/r/en-US/ug835-vivado-tcl-commands/set_false_path
-  def writeFalsePath(s: DataAssignmentStatement, writer: Writer): Unit = {
-    val source = s.source.asInstanceOf[BaseType]
-    val target = s.target.asInstanceOf[BaseType]
+  def writeFalsePath(s: DataAssignmentStatement, writer: Writer, sourceTag: Option[crossClockFalsePathSource]): Unit = {
+    val source = sourceTag.map(_.source.getName).getOrElse(s.source.asInstanceOf[BaseType].getRtlPath())
+    val target = s.target.asInstanceOf[BaseType].getRtlPath()
     // TODO trace source to previous FF or input pin
     // TODO fix constraint to find pin
     writer.write(
       s"""
-         |# CDC constaints for ${s.source.toString} -> ${s.target.toString} in ${s.component.getPath()}
-         |${findDriverCell(source.getRtlPath())}
-         |set_false_path -from $$source -to [get_pins ${target.getRtlPath()}_reg*/D]
+         |# CDC constaints for ${source} -> ${target} in ${s.component.getPath()}
+         |${findDriverCell(source)}
+         |set_false_path -from $$source -to [get_pins ${target}_reg*/D]
          |""".stripMargin)
 
   }

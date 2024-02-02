@@ -138,7 +138,7 @@ object ResetCtrl{
       input       = (if(solvedOutputPolarity == HIGH) False else True) ^ inputSync,
       init        = if(solvedOutputPolarity == HIGH) True  else False,
       bufferDepth = bufferDepth,
-      inputAttributes = List(crossClockFalsePath))
+      inputAttributes = List(crossClockFalsePath, new crossClockFalsePathSource(input)))
     )
   }
 
