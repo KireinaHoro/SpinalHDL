@@ -6,8 +6,8 @@ import scala.collection.Seq
 import scala.collection.mutable.ArrayBuffer
 
 object BufferCC {
-  def apply[T <: Data](input: T, init: => T = null, bufferDepth: Option[Int] = None, randBoot : Boolean = false, inputAttributes: Seq[SpinalTag] = List()): T = {
-    val c = new BufferCC(input, init, bufferDepth, randBoot, inputAttributes)
+  def apply[T <: Data](input: T, init: => T = null, bufferDepth: Option[Int] = None, randBoot : Boolean = false, inputAttributes: Seq[SpinalTag] = List(), allBufAttributes: Seq[SpinalTag] = List()): T = {
+    val c = new BufferCC(input, init, bufferDepth, randBoot, inputAttributes, allBufAttributes)
     c.setCompositeName(input, "buffercc", true)
     // keep hierarchy for timing constraint generation
     c.io.dataIn := input
@@ -50,7 +50,7 @@ object BufferCC {
   }
 }
 
-class BufferCC[T <: Data](val dataType: T, init :  => T, val bufferDepth: Option[Int], val  randBoot : Boolean = false, inputAttributes: Seq[SpinalTag] = List()) extends Component {
+class BufferCC[T <: Data](val dataType: T, init :  => T, val bufferDepth: Option[Int], val  randBoot : Boolean = false, inputAttributes: Seq[SpinalTag] = List(), allBufAttributes: Seq[SpinalTag] = List()) extends Component {
   def getInit() : T = init
   val finalBufferDepth = BufferCC.defaultDepthOptioned(ClockDomain.current, bufferDepth)
   assert(finalBufferDepth >= 1)
@@ -69,6 +69,7 @@ class BufferCC[T <: Data](val dataType: T, init :  => T, val bufferDepth: Option
   for (i <- 1 until finalBufferDepth) {
     buffers(i) := buffers(i - 1)
     buffers(i).addTag(crossClockBuffer)
+    allBufAttributes.foreach(buffers(i).addTag)
   }
 
   io.dataOut := buffers.last
@@ -134,11 +135,13 @@ object ResetCtrl{
     )
 
     val solvedOutputPolarity = if(outputPolarity == null) clockDomain.config.resetActiveLevel else outputPolarity
+    val falsePathAttrs = List(crossClockFalsePath, new crossClockFalsePathSource(input))
     samplerCD(BufferCC(
       input       = (if(solvedOutputPolarity == HIGH) False else True) ^ inputSync,
       init        = if(solvedOutputPolarity == HIGH) True  else False,
       bufferDepth = bufferDepth,
-      inputAttributes = List(crossClockFalsePath, new crossClockFalsePathSource(input)))
+      inputAttributes = falsePathAttrs,
+      allBufAttributes = falsePathAttrs)
     )
   }
 
