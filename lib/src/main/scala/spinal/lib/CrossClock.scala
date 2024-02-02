@@ -136,8 +136,9 @@ object ResetCtrl{
     val solvedOutputPolarity = if(outputPolarity == null) clockDomain.config.resetActiveLevel else outputPolarity
     samplerCD(BufferCC(
       input       = (if(solvedOutputPolarity == HIGH) False else True) ^ inputSync,
-      init        = (if(solvedOutputPolarity == HIGH) True  else False),
-      bufferDepth = bufferDepth)
+      init        = if(solvedOutputPolarity == HIGH) True  else False,
+      bufferDepth = bufferDepth,
+      inputAttributes = List(crossClockFalsePath))
     )
   }
 
@@ -168,7 +169,7 @@ object ResetCtrl{
         inputPolarity = resetCd.config.resetActiveLevel,
         outputPolarity = clockCd.config.resetActiveLevel,
         bufferDepth = bufferDepth
-      ).setCompositeName(resetCd.reset, "syncronized", true)
+      ).setCompositeName(resetCd.reset, "synchronized", true)
     )
   }
 }
