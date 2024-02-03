@@ -63,7 +63,7 @@ private object ConstraintWriter {
 
   def findDriverCell(s: String, destVar: String = "source"): String =
     s"""
-       |set pin [get_pins {$s}]
+       |set pin [get_pins -hier -filter {NAME =~ */$s}]
        |set net [get_nets -segments -of_objects $$pin]
        |set source_pins [get_pins -of_objects $$net -filter {IS_LEAF && DIRECTION == OUT}]
        |set $destVar [get_cells -of_objects $$source_pins]
@@ -87,7 +87,7 @@ private object ConstraintWriter {
       s"""
          |# CDC constaints for ${source} -> ${target} in ${s.component.getPath()}
          |${findDriverCell(source)}
-         |set_false_path -from $$source -to [get_pins ${target}_reg*/$pinName]
+         |set_false_path -quiet -from $$source -to [get_pins ${target}_reg*/$pinName]
          |""".stripMargin)
 
   }
