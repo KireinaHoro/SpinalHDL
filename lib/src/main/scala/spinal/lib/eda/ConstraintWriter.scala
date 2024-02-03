@@ -86,7 +86,7 @@ private object ConstraintWriter {
       s"""
          |# CDC constaints for ${source} -> ${target} in ${s.component.getPath()}
          |${findDriverCell(source)}
-         |set_false_path -from $$source -to [get_pins ${target}_reg*/D]
+         |set_false_path -from $$source -to [get_pins ${target}_reg*]
          |""".stripMargin)
 
   }
