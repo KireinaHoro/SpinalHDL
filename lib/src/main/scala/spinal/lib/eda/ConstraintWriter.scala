@@ -80,13 +80,14 @@ private object ConstraintWriter {
   def writeFalsePath(s: DataAssignmentStatement, writer: Writer, sourceTag: Option[crossClockFalsePathSource]): Unit = {
     val source = sourceTag.map(_.source.getName).getOrElse(s.source.asInstanceOf[BaseType].getRtlPath())
     val target = s.target.asInstanceOf[BaseType].getRtlPath()
+    val pinName = if (sourceTag.exists(_.destIsReset)) "PRE" else "D"
     // TODO trace source to previous FF or input pin
     // TODO fix constraint to find pin
     writer.write(
       s"""
          |# CDC constaints for ${source} -> ${target} in ${s.component.getPath()}
          |${findDriverCell(source)}
-         |set_false_path -from $$source -to [get_pins ${target}_reg*]
+         |set_false_path -from $$source -to [get_pins ${target}_reg*/$pinName]
          |""".stripMargin)
 
   }
