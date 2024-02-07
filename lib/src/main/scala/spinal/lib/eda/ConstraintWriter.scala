@@ -78,7 +78,7 @@ private object ConstraintWriter {
     val source = if (resetIsDriver) s.source.asInstanceOf[BaseType] else traceDrivingReg(s.source.asInstanceOf[BaseType])
     val sourceLocator = if (source.isReg && !resetIsDriver) {
       // source is register inside spinal design
-      f"set source [get_pins ${source.getRtlPath()}_reg*/Q]"
+      f"set source [get_cells ${source.getRtlPath()}_reg*]"
     } else {
       findDriverCell(sourceTag.get.source.getName())
     }
@@ -107,7 +107,7 @@ private object ConstraintWriter {
          |# CDC constraints for ${source.getRtlPath()} -> ${target.getRtlPath()} in ${s.component.getPath()}
          |${findClockPeriod(sourceCD, s.component.getName(), "src_clk_period")}
          |${findClockPeriod(targetCD, s.component.getName(), "dst_clk_period")}
-         |set source [get_pins ${source.getRtlPath()}_reg*/Q]
+         |set source [get_cells ${source.getRtlPath()}_reg*]
          |set_max_delay -from $$source -to [get_pins ${target.getRtlPath()}_reg*/D] [$maxDelay] -datapath_only
          |set_bus_skew -from $$source -to [get_pins ${target.getRtlPath()}_reg*/D] $$dst_clk_period
          |""".stripMargin)
