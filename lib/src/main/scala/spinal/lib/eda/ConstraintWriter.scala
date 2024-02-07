@@ -62,32 +62,34 @@ private object ConstraintWriter {
   }
 
   def findDriverCell(s: String, destVar: String = "source"): String =
-    s"""
-       |set pin [get_pins -hier -filter {NAME =~ */$s}]
+    s"""set pin [get_pins -hier -filter {NAME =~ */$s}]
        |set net [get_nets -segments -of_objects $$pin]
        |set source_pins [get_pins -of_objects $$net -filter {IS_LEAF && DIRECTION == OUT}]
-       |set $destVar [get_cells -of_objects $$source_pins]
-       |""".stripMargin
+       |set $destVar [get_cells -of_objects $$source_pins]""".stripMargin
 
   def findClockPeriod(cd: ClockDomain, compName: String, destVar: String = "clk_period"): String =
-    s"""
-       |set clk_net [get_nets -hier -filter {NAME =~ */$compName/${cd.toString}}]
+    s"""set clk_net [get_nets -hier -filter {NAME =~ */$compName/${cd.toString}}]
        |set clk [get_clocks -of $$clk_net]
-       |set $destVar [get_property -min PERIOD $$clk]
-       |""".stripMargin
+       |set $destVar [get_property -min PERIOD $$clk]""".stripMargin
 
   // see https://docs.xilinx.com/r/en-US/ug835-vivado-tcl-commands/set_false_path
   def writeFalsePath(s: DataAssignmentStatement, writer: Writer, sourceTag: Option[crossClockFalsePathSource]): Unit = {
-    val source = sourceTag.map(_.source.getName).getOrElse(s.source.asInstanceOf[BaseType].getRtlPath())
+    val resetIsDriver = sourceTag.exists(_.destIsReset)
+    val source = if (resetIsDriver) s.source.asInstanceOf[BaseType] else traceDrivingReg(s.source.asInstanceOf[BaseType])
+    val sourceLocator = if (source.isReg && !resetIsDriver) {
+      // source is register inside spinal design
+      f"set source [get_pins ${source.getRtlPath()}_reg*/Q]"
+    } else {
+      findDriverCell(sourceTag.get.source.getName())
+    }
+    val quiet = if (resetIsDriver) " -quiet" else ""
     val target = s.target.asInstanceOf[BaseType].getRtlPath()
     val pinName = if (sourceTag.exists(_.destIsReset)) "PRE" else "D"
-    // TODO trace source to previous FF or input pin
-    // TODO fix constraint to find pin
     writer.write(
       s"""
-         |# CDC constaints for ${source} -> ${target} in ${s.component.getPath()}
-         |${findDriverCell(source)}
-         |set_false_path -quiet -from $$source -to [get_pins ${target}_reg*/$pinName]
+         |# CDC constaints for ${source.getRtlPath()} -> ${target} in ${s.component.getPath()}
+         |$sourceLocator
+         |set_false_path$quiet -from $$source -to [get_pins ${target}_reg*/$pinName]
          |""".stripMargin)
 
   }
@@ -95,21 +97,18 @@ private object ConstraintWriter {
   // see https://docs.xilinx.com/r/en-US/ug835-vivado-tcl-commands/set_max_delay
   // and https://docs.xilinx.com/r/en-US/ug835-vivado-tcl-commands/set_bus_skew
   def writeMaxDelay(s: DataAssignmentStatement, tag: crossClockMaxDelay, writer: Writer): Unit = {
-    val source = s.source.asInstanceOf[BaseType]
+    val source = traceDrivingReg(s.source.asInstanceOf[BaseType])
     val sourceCD = source.getTag(classOf[ClockDomainTag]).map(_.clockDomain).getOrElse(source.clockDomain)
     val target = s.target.asInstanceOf[BaseType]
     val targetCD = target.getTag(classOf[ClockDomainTag]).map(_.clockDomain).getOrElse(target.clockDomain)
-    // TODO trace source to previous FF
-    // TODO fix constraint to find pin
-    // TODO use tag information
+    val maxDelay = f"expr {${tag.cycles} * $$${if (tag.useTargetClock) "dst_clk_period" else "src_clk_period"}}"
     writer.write(
       s"""
          |# CDC constraints for ${source.getRtlPath()} -> ${target.getRtlPath()} in ${s.component.getPath()}
-         |# FIXME: this doesn't find the correct clocks!
          |${findClockPeriod(sourceCD, s.component.getName(), "src_clk_period")}
          |${findClockPeriod(targetCD, s.component.getName(), "dst_clk_period")}
-         |${findDriverCell(source.getRtlPath())}
-         |set_max_delay -from $$source -to [get_pins ${target.getRtlPath()}_reg*/D] $$src_clk_period -datapath_only
+         |set source [get_pins ${source.getRtlPath()}_reg*/Q]
+         |set_max_delay -from $$source -to [get_pins ${target.getRtlPath()}_reg*/D] [$maxDelay] -datapath_only
          |set_bus_skew -from $$source -to [get_pins ${target.getRtlPath()}_reg*/D] $$dst_clk_period
          |""".stripMargin)
   }
@@ -128,6 +127,17 @@ private object ConstraintWriter {
   }
 
   def fullPath(bt: BaseType) = (if (bt.component != null) bt.component.getPath() + "/" else "") + bt.getDisplayName()
+  def traceDrivingReg(signal: BaseType): BaseType = {
+    if (signal.isReg)
+      return signal
+    if (signal.component.parent == null && (signal.isInput || signal.isOutput || signal.isInOut))
+      return signal
+
+    signal.getSingleDriver match {
+      case None => throw new Exception(f"cannot find driver for $signal")
+      case Some(driver) => traceDrivingReg(driver)
+    }
+  }
 }
 
 case class Test() extends Component {
