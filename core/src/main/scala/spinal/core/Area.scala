@@ -126,6 +126,17 @@ object ImplicitArea{
 class ClockingArea(val clockDomain: ClockDomain) extends Area with PostInitCallback {
   val ctx = ClockDomainStack.set(clockDomain)
 
+  /*
+  // ATTEMPT to mark signals created inside area as belonging to the clock domain
+  override def valCallbackRec(obj: Any, name: String): Unit = {
+    super.valCallbackRec(obj, name)
+    obj match {
+      case data: BaseType if !data.isReg => data.addTag(ClockDomainTag(clockDomain))
+      case _ =>
+    }
+  }
+   */
+
   override def postInitCallback(): this.type = {
     ctx.restore()
     this

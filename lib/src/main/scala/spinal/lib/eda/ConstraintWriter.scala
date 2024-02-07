@@ -69,9 +69,9 @@ private object ConstraintWriter {
        |set $destVar [get_cells -of_objects $$source_pins]
        |""".stripMargin
 
-  def findClockPeriod(cd: ClockDomain, destVar: String = "clk_period"): String =
+  def findClockPeriod(cd: ClockDomain, compName: String, destVar: String = "clk_period"): String =
     s"""
-       |set clk_net [get_nets -hier -filter {NAME =~ */${cd.toString}}]
+       |set clk_net [get_nets -hier -filter {NAME =~ */$compName/${cd.toString}}]
        |set clk [get_clocks -of $$clk_net]
        |set $destVar [get_property -min PERIOD $$clk]
        |""".stripMargin
@@ -96,15 +96,18 @@ private object ConstraintWriter {
   // and https://docs.xilinx.com/r/en-US/ug835-vivado-tcl-commands/set_bus_skew
   def writeMaxDelay(s: DataAssignmentStatement, tag: crossClockMaxDelay, writer: Writer): Unit = {
     val source = s.source.asInstanceOf[BaseType]
+    val sourceCD = source.getTag(classOf[ClockDomainTag]).map(_.clockDomain).getOrElse(source.clockDomain)
     val target = s.target.asInstanceOf[BaseType]
+    val targetCD = target.getTag(classOf[ClockDomainTag]).map(_.clockDomain).getOrElse(target.clockDomain)
     // TODO trace source to previous FF
     // TODO fix constraint to find pin
+    // TODO use tag information
     writer.write(
       s"""
-         |# CDC constraints for ${s.source.toString} -> ${s.target.toString} in ${s.component.getPath()}
+         |# CDC constraints for ${source.getRtlPath()} -> ${target.getRtlPath()} in ${s.component.getPath()}
          |# FIXME: this doesn't find the correct clocks!
-         |${findClockPeriod(source.clockDomain, "src_clk_period")}
-         |${findClockPeriod(target.clockDomain, "dst_clk_period")}
+         |${findClockPeriod(sourceCD, s.component.getName(), "src_clk_period")}
+         |${findClockPeriod(targetCD, s.component.getName(), "dst_clk_period")}
          |${findDriverCell(source.getRtlPath())}
          |set_max_delay -from $$source -to [get_pins ${target.getRtlPath()}_reg*/D] $$src_clk_period -datapath_only
          |set_bus_skew -from $$source -to [get_pins ${target.getRtlPath()}_reg*/D] $$dst_clk_period
