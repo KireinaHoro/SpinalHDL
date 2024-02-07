@@ -249,4 +249,6 @@ class FlowCCByToggle[T <: Data](dataType: HardType[T],
     inputArea.target.randBoot()
     outputArea.hit.randBoot()
   }
+
+  addAttribute("keep_hierarchy", "TRUE")
 }
