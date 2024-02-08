@@ -810,6 +810,9 @@ object noLatchCheck                  extends SpinalTag
 object noBackendCombMerge            extends SpinalTag
 object crossClockDomain              extends SpinalTag{ override def moveToSyncNode = true }
 object crossClockBuffer              extends SpinalTag{ override def moveToSyncNode = true }
+object crossClockFalsePath           extends SpinalTag
+case class crossClockFalsePathSource(source: BaseType, destIsReset: Boolean) extends SpinalTag { override def allowMultipleInstance: Boolean = false }
+case class crossClockMaxDelay(cycles: Int, useTargetClock: Boolean) extends SpinalTag { override def allowMultipleInstance: Boolean = false }
 object randomBoot                    extends SpinalTag{ override def moveToSyncNode = true }
 object tagAutoResize                 extends SpinalTag{ override def duplicative = true }
 object tagTruncated                  extends SpinalTag{

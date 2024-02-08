@@ -130,7 +130,10 @@ class Flow[T <: Data](val payloadType: HardType[T]) extends Bundle with IMasterS
       val ret = RegNext(this)
       ret.valid.init(False)
       if(flush != null) when(flush){ ret.valid := False }
-      if(crossClockData) ret.payload.addTag(crossClockDomain)
+      if(crossClockData) {
+        ret.payload.addTag(crossClockDomain)
+        ret.payload.addTag(new crossClockMaxDelay(2, true))
+      }
       ret
     } else {
       val ret = Reg(this)
@@ -140,7 +143,10 @@ class Flow[T <: Data](val payloadType: HardType[T]) extends Bundle with IMasterS
         ret.payload := this.payload
       }
       if(flush != null) when(flush){ ret.valid := False }
-      if(crossClockData) ret.payload.addTag(crossClockDomain)
+      if(crossClockData) {
+        ret.payload.addTag(crossClockDomain)
+        ret.payload.addTag(new crossClockMaxDelay(2, true))
+      }
       ret
     }.setCompositeName(this, "m2sPipe", true)
   }
@@ -224,12 +230,13 @@ class FlowCCByToggle[T <: Data](dataType: HardType[T],
   }
 
   val outputArea = new ClockingArea(finalOutputClock) {
-    val target = BufferCC(inputArea.target, doInit generate False, randBoot = !doInit)
+    val target = BufferCC(inputArea.target, doInit generate False, randBoot = !doInit, inputAttributes = List(crossClockFalsePath))
     val hit = RegNext(target).addTag(noInit)
 
     val flow = cloneOf(io.input)
     flow.valid := (target =/= hit)
-    flow.payload := inputArea.data
+    // FIXME: general solution such that clock domain propagates during assign?
+    flow.payload.addTag(ClockDomainTag(inputClock)) := inputArea.data
 
     io.output << (if(withOutputM2sPipe) flow.m2sPipe(holdPayload = true, crossClockData = true) else flow)
   }
@@ -242,4 +249,6 @@ class FlowCCByToggle[T <: Data](dataType: HardType[T],
     inputArea.target.randBoot()
     outputArea.hit.randBoot()
   }
+
+  addAttribute("keep_hierarchy", "TRUE")
 }
