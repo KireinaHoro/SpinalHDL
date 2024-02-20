@@ -51,8 +51,8 @@ private object ConstraintWriter {
     s match {
       case da: DataAssignmentStatement =>
         da.target match {
-          case str: SpinalTagReady if str.hasTag(crossClockFalsePath) =>
-            writeFalsePath(da, writer, str.getTag(classOf[crossClockFalsePathSource]))
+          case str: SpinalTagReady if str.hasTag(classOf[crossClockFalsePath]) =>
+            writeFalsePath(da, writer, str.getTag(classOf[crossClockFalsePath]).get)
           case str: SpinalTagReady if str.hasTag(classOf[crossClockMaxDelay]) =>
             writeMaxDelay(da, str.getTag(classOf[crossClockMaxDelay]).get, writer)
           case _ =>
@@ -73,18 +73,18 @@ private object ConstraintWriter {
        |set $destVar [get_property -min PERIOD $$clk]""".stripMargin
 
   // see https://docs.xilinx.com/r/en-US/ug835-vivado-tcl-commands/set_false_path
-  def writeFalsePath(s: DataAssignmentStatement, writer: Writer, sourceTag: Option[crossClockFalsePathSource]): Unit = {
-    val resetIsDriver = sourceTag.exists(_.destIsReset)
+  def writeFalsePath(s: DataAssignmentStatement, writer: Writer, falsePathTag: crossClockFalsePath): Unit = {
+    val resetIsDriver = falsePathTag.destIsReset
     val source = if (resetIsDriver) s.source.asInstanceOf[BaseType] else traceDrivingReg(s.source.asInstanceOf[BaseType])
     val sourceLocator = if (source.isReg && !resetIsDriver) {
       // source is register inside spinal design
       f"set source [get_cells ${source.getRtlPath()}_reg*]"
     } else {
-      findDriverCell(sourceTag.get.source.getName())
+      findDriverCell(falsePathTag.source.get.getName())
     }
     val quiet = if (resetIsDriver) " -quiet" else ""
     val target = s.target.asInstanceOf[BaseType].getRtlPath()
-    val pinName = if (sourceTag.exists(_.destIsReset)) "PRE" else "D"
+    val pinName = if (resetIsDriver) "PRE" else "D"
     writer.write(
       s"""
          |# CDC constaints for ${source.getRtlPath()} -> ${target} in ${s.component.getPath()}
@@ -159,7 +159,7 @@ case class Test() extends Component {
   }
   val otherCD = ClockDomain.external("someDomain")
 
-  io.o := BufferCC(io.i, inputAttributes = List(crossClockFalsePath))
+  io.o := BufferCC(io.i, inputAttributes = List(crossClockFalsePath()))
   io.os <> io.is.ccToggle(ClockDomain.current, otherCD)
 
   otherCD {

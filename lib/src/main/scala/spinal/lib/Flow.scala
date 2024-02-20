@@ -230,7 +230,7 @@ class FlowCCByToggle[T <: Data](dataType: HardType[T],
   }
 
   val outputArea = new ClockingArea(finalOutputClock) {
-    val target = BufferCC(inputArea.target, doInit generate False, randBoot = !doInit, inputAttributes = List(crossClockFalsePath))
+    val target = BufferCC(inputArea.target, doInit generate False, randBoot = !doInit, inputAttributes = List(crossClockFalsePath()))
     val hit = RegNext(target).addTag(noInit)
 
     val flow = cloneOf(io.input)

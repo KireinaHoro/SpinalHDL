@@ -102,7 +102,7 @@ class PulseCCByToggle(clockIn: ClockDomain, clockOut: ClockDomain, withOutputBuf
 
   val finalOutputClock = clockOut.withOptionalBufferedResetFrom(withOutputBufferedReset)(clockIn)
   val outArea = finalOutputClock on new Area {
-    val target = BufferCC(inArea.target, False, inputAttributes = List(crossClockFalsePath))
+    val target = BufferCC(inArea.target, False, inputAttributes = List(crossClockFalsePath()))
 
     io.pulseOut := target.edge(False)
   }
@@ -135,7 +135,7 @@ object ResetCtrl{
     )
 
     val solvedOutputPolarity = if(outputPolarity == null) clockDomain.config.resetActiveLevel else outputPolarity
-    val falsePathAttrs = List(crossClockFalsePath, new crossClockFalsePathSource(input, destIsReset = true))
+    val falsePathAttrs = List(crossClockFalsePath(Some(input), destIsReset = true))
     samplerCD(BufferCC(
       input       = (if(solvedOutputPolarity == HIGH) False else True) ^ inputSync,
       init        = if(solvedOutputPolarity == HIGH) True  else False,
