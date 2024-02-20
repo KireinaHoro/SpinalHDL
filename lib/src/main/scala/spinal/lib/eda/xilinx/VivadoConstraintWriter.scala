@@ -83,12 +83,12 @@ object VivadoConstraintWriter {
     }
     val quiet = if (resetIsDriver) " -quiet" else ""
     val target = s.target.asInstanceOf[BaseType].getRtlPath()
-    val pinName = if (resetIsDriver) "PRE" else "D"
+    val pinName = if (resetIsDriver) "(PRE|CLR|S|R)" else "D"
     writer.write(
       s"""
          |# CDC constaints for ${source.getRtlPath()} -> ${target} in ${s.component.getPath()}
          |$sourceLocator
-         |set_false_path$quiet -from $$source -to [get_pins ${target}_reg*/$pinName]
+         |set_false_path$quiet -from $$source -to [get_pins -regexp ${target}_reg*/$pinName]
          |""".stripMargin)
 
   }
