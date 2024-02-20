@@ -8,12 +8,13 @@ import java.io.{File, PrintWriter, Writer}
 import scala.collection.mutable
 import scala.language.postfixOps
 
-private object VivadoConstraintWriter {
+object VivadoConstraintWriter {
   def apply[T <: Component](
-                             c: T,
+                             report: SpinalReport[T],
                              filename: String = null,
                              trustSpinalTimings: Boolean = false
-                           ): T = {
+                           ): Unit = {
+    val c = report.toplevel
     val realFilename = Option(filename).getOrElse(
       f"${GlobalData.get.phaseContext.config.targetDirectory}/${c.getClass.getSimpleName}.xdc"
     )
@@ -28,8 +29,6 @@ private object VivadoConstraintWriter {
     val oocWriter = new PrintWriter(new File(oocFilename))
     c.getAllIo.foreach(doTopLevelPorts(_, oocWriter))
     oocWriter.close()
-
-    c
   }
 
   val clockDomainNames = mutable.LinkedHashSet[String]()
@@ -176,5 +175,5 @@ case class Test() extends Component {
 }
 
 object Test extends App {
-  SpinalVerilog(VivadoConstraintWriter(Test()))
+  VivadoConstraintWriter(SpinalVerilog(Test()))
 }
