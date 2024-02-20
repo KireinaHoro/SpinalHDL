@@ -69,8 +69,8 @@ class BufferCC[T <: Data](val dataType: T, init :  => T, val bufferDepth: Option
   for (i <- 1 until finalBufferDepth) {
     buffers(i) := buffers(i - 1)
     buffers(i).addTag(crossClockBuffer)
-    allBufAttributes.foreach(buffers(i).addTag)
   }
+  buffers.map(b => allBufAttributes.foreach(b.addTag))
 
   io.dataOut := buffers.last
 
@@ -140,7 +140,6 @@ object ResetCtrl{
       input       = (if(solvedOutputPolarity == HIGH) False else True) ^ inputSync,
       init        = if(solvedOutputPolarity == HIGH) True  else False,
       bufferDepth = bufferDepth,
-      inputAttributes = falsePathAttrs,
       allBufAttributes = falsePathAttrs)
     )
   }
