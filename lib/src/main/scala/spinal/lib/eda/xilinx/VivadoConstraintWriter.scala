@@ -69,7 +69,7 @@ private object VivadoConstraintWriter {
 
   def findClockPeriod(cd: ClockDomain, compName: String, destVar: String = "clk_period"): String =
     s"""set clk_net [get_nets -hier -filter {NAME =~ */$compName/${cd.toString}}]
-       |set clk [get_clocks -of $$clk_net]
+       |set clk [get_clocks -include_generated_clocks -of $$clk_net]
        |set $destVar [get_property -min PERIOD $$clk]""".stripMargin
 
   // see https://docs.xilinx.com/r/en-US/ug835-vivado-tcl-commands/set_false_path
