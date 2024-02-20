@@ -125,30 +125,22 @@ class Flow[T <: Data](val payloadType: HardType[T]) extends Bundle with IMasterS
   def map[T2 <: Data](translate: (T) => T2): Flow[T2] = (this ~ translate(this.payload))
 
   def m2sPipe : Flow[T] = m2sPipe()
-  def m2sPipe(holdPayload : Boolean = false, flush : Bool = null, crossClockData : Boolean = false): Flow[T] = {
-    if(!holdPayload) {
-      val ret = RegNext(this)
-      ret.valid.init(False)
-      if(flush != null) when(flush){ ret.valid := False }
-      if(crossClockData) {
-        ret.payload.addTag(crossClockDomain)
-        ret.payload.addTag(new crossClockMaxDelay(2, true))
-      }
-      ret
-    } else {
+  def m2sPipe(holdPayload : Boolean = false, flush : Bool = null, crossClockAttributes: Seq[SpinalTag] = List()): Flow[T] = {
+    val ret = if(!holdPayload) RegNext(this) else {
       val ret = Reg(this)
-      ret.valid.init(False)
       ret.valid := this.valid
       when(this.valid){
         ret.payload := this.payload
       }
-      if(flush != null) when(flush){ ret.valid := False }
-      if(crossClockData) {
-        ret.payload.addTag(crossClockDomain)
-        ret.payload.addTag(new crossClockMaxDelay(2, true))
-      }
       ret
-    }.setCompositeName(this, "m2sPipe", true)
+    }
+    ret.valid.init(False)
+    if(flush != null) when(flush){ ret.valid := False }
+    if(crossClockAttributes.nonEmpty) {
+      ret.payload.addTag(crossClockDomain)
+      crossClockAttributes.foreach(ret.payload.addTag)
+    }
+    ret.setCompositeName(this, "m2sPipe", true)
   }
 
   def stage() : Flow[T] = this.m2sPipe()
@@ -238,7 +230,7 @@ class FlowCCByToggle[T <: Data](dataType: HardType[T],
     // FIXME: general solution such that clock domain propagates during assign?
     flow.payload.addTag(ClockDomainTag(inputClock)) := inputArea.data
 
-    io.output << (if(withOutputM2sPipe) flow.m2sPipe(holdPayload = true, crossClockData = true) else flow)
+    io.output << (if(withOutputM2sPipe) flow.m2sPipe(holdPayload = true, crossClockAttributes = List(crossClockMaxDelay(2, useTargetClock = true))) else flow)
   }
 
 
