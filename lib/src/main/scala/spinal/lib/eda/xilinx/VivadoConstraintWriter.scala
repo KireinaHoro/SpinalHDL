@@ -1,14 +1,14 @@
-package spinal.lib.eda
+package spinal.lib.eda.xilinx
 
 import spinal.core.ClockDomain.FixedFrequency
 import spinal.core.internals._
 import spinal.core.{crossClockMaxDelay, _}
 
 import java.io.{File, PrintWriter, Writer}
-import scala.language.postfixOps
 import scala.collection.mutable
+import scala.language.postfixOps
 
-private object ConstraintWriter {
+private object VivadoConstraintWriter {
   def apply[T <: Component](
                              c: T,
                              filename: String = null,
@@ -176,5 +176,5 @@ case class Test() extends Component {
 }
 
 object Test extends App {
-  SpinalVerilog(ConstraintWriter(Test()))
+  SpinalVerilog(VivadoConstraintWriter(Test()))
 }
