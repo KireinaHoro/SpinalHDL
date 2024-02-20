@@ -3,6 +3,7 @@ package spinal.lib.eda.xilinx
 import spinal.core.ClockDomain.FixedFrequency
 import spinal.core.internals._
 import spinal.core.{crossClockMaxDelay, _}
+import spinal.lib.AnalysisUtils
 
 import java.io.{File, PrintWriter, Writer}
 import scala.collection.mutable
@@ -27,23 +28,17 @@ object VivadoConstraintWriter {
       case Array(other, _*) => other
     }.mkString(".")
     val oocWriter = new PrintWriter(new File(oocFilename))
-    c.getAllIo.foreach(doTopLevelPorts(_, oocWriter))
-    oocWriter.close()
-  }
 
-  val clockDomainNames = mutable.LinkedHashSet[String]()
-
-  def doTopLevelPorts(s: BaseType, writer: Writer): Unit = {
-    s match {
-      case bool: Bool =>
-        bool.foreachTag {
-          case ClockDomainReportTag(cd) if !clockDomainNames.contains(cd.toString) =>
-            writeClockDef(cd, writer)
-            clockDomainNames.add(cd.toString)
-          case _ =>
+    val clockDomainNames = mutable.LinkedHashSet[String]()
+    AnalysisUtils.foreachToplevelIoCd(c) {
+      case (p: Bool, List(cd)) if p.isInput =>
+        if (!clockDomainNames.contains(cd.toString)) {
+          writeClockDef(cd, oocWriter)
+          clockDomainNames.add(cd.toString)
         }
       case _ =>
     }
+    oocWriter.close()
   }
 
   def doWalkStatements(s: Statement, writer: Writer): Unit = {
@@ -74,7 +69,12 @@ object VivadoConstraintWriter {
   // see https://docs.xilinx.com/r/en-US/ug835-vivado-tcl-commands/set_false_path
   def writeFalsePath(s: DataAssignmentStatement, writer: Writer, falsePathTag: crossClockFalsePath): Unit = {
     val resetIsDriver = falsePathTag.destIsReset
-    val source = if (resetIsDriver) s.source.asInstanceOf[BaseType] else traceDrivingReg(s.source.asInstanceOf[BaseType])
+    var source = s.source.asInstanceOf[BaseType]
+    if (!resetIsDriver) {
+      AnalysisUtils.seekNonCombDrivers(source) { case b: BaseType =>
+        source = b
+      }
+    }
     val sourceLocator = if (source.isReg && !resetIsDriver) {
       // source is register inside spinal design
       f"set source [get_cells ${source.getRtlPath()}_reg*]"
@@ -96,7 +96,10 @@ object VivadoConstraintWriter {
   // see https://docs.xilinx.com/r/en-US/ug835-vivado-tcl-commands/set_max_delay
   // and https://docs.xilinx.com/r/en-US/ug835-vivado-tcl-commands/set_bus_skew
   def writeMaxDelay(s: DataAssignmentStatement, tag: crossClockMaxDelay, writer: Writer): Unit = {
-    val source = traceDrivingReg(s.source.asInstanceOf[BaseType])
+    var source = s.source.asInstanceOf[BaseType]
+    AnalysisUtils.seekNonCombDrivers(source) { case b: BaseType =>
+      source = b
+    }
     val sourceCD = source.getTag(classOf[ClockDomainTag]).map(_.clockDomain).getOrElse(source.clockDomain)
     val target = s.target.asInstanceOf[BaseType]
     val targetCD = target.getTag(classOf[ClockDomainTag]).map(_.clockDomain).getOrElse(target.clockDomain)
@@ -126,17 +129,6 @@ object VivadoConstraintWriter {
   }
 
   def fullPath(bt: BaseType) = (if (bt.component != null) bt.component.getPath() + "/" else "") + bt.getDisplayName()
-  def traceDrivingReg(signal: BaseType): BaseType = {
-    if (signal.isReg)
-      return signal
-    if (signal.component.parent == null && (signal.isInput || signal.isOutput || signal.isInOut))
-      return signal
-
-    signal.getSingleDriver match {
-      case None => throw new Exception(f"cannot find driver for $signal")
-      case Some(driver) => traceDrivingReg(driver)
-    }
-  }
 }
 
 case class Test() extends Component {
