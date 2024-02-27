@@ -20,6 +20,7 @@ class FiberPlugin extends Area with Hostable {
   var pluginEnabled = true
   var host : PluginHost = null
   val hostLock = Lock().retain()
+  val postBuildLock = Lock().retain()
 
   val subservices = ArrayBuffer[Any]()
   def addService[T](that : T) : T = {
@@ -70,6 +71,7 @@ class FiberPlugin extends Area with Hostable {
     def build[T: ClassTag](body: => T): Handle[T] = {
       buildCount += 1
       spinal.core.fiber.Fiber build {
+        if (!pluginEnabled) postBuildLock.release()
         pluginEnabled generate {
           hostLock.await()
           val ret = host.rework(body)
@@ -77,6 +79,7 @@ class FiberPlugin extends Area with Hostable {
           if (buildCount == 0) {
             lockables.foreach(_().release())
           }
+          postBuildLock.release()
           ret
         }
       }
