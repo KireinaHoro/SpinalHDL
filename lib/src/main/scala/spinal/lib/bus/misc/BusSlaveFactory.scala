@@ -708,9 +708,10 @@ trait BusSlaveFactory extends Area{
 
   def readSyncMemWordAligned[T <: Data](mem           : Mem[T],
                                         addressOffset : BigInt,
-                                        bitOffset     : Int = 0) : Mem[T] = {
+                                        bitOffset     : Int = 0,
+                                        memOffset     : UInt = U(0).resized) : Mem[T] = {
     val mapping = SizeMapping(addressOffset,mem.wordCount << log2Up(busDataWidth/8))
-    val memAddress = readAddress(mapping) >> log2Up(busDataWidth/8)
+    val memAddress = (readAddress(mapping) >> log2Up(busDataWidth/8)) + memOffset
     val readData = mem.readSync(memAddress)
     multiCycleRead(mapping,2)
     readPrimitive(readData, mapping, bitOffset, null)
