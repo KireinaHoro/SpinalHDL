@@ -673,6 +673,39 @@ trait BusSlaveFactory extends Area{
   def readAddress(address: AddressMapping): UInt = address.removeOffset(readAddress())
   def writeAddress(address: AddressMapping): UInt = address.removeOffset(writeAddress())
 
+  /** Generate one read-write port.  Write takes priority.  */
+  def readWriteSyncMemWordAligned[T <: Data](mem: Mem[T],
+                                             addressOffset: BigInt,
+                                             bitOffset: Int = 0): Mem[T] = {
+    val mapping = SizeMapping(addressOffset,mem.wordCount << log2Up(busDataWidth/8))
+    val readMemAddress = readAddress(mapping) >> log2Up(busDataWidth / 8)
+    val writeMemAddress = writeAddress(mapping) >> log2Up(busDataWidth / 8)
+
+    val writeMaskWidth = if (writeByteEnable != null) widthOf(writeByteEnable()) else -1
+    val port = mem.readWriteSyncPort(writeMaskWidth, writeFirst)
+    port.write := False
+    port.address := port.write ? writeMemAddress | readMemAddress
+    port.enable := False
+
+    nonStopWrite(port.wdata, bitOffset)
+    if (writeByteEnable != null) port.mask := writeByteEnable()
+    onWritePrimitive(mapping, true, null) {
+      port.write := True
+      port.enable := True
+    }
+
+    multiCycleRead(mapping, 2)
+    readPrimitive(port.rdata, mapping, bitOffset, null)
+    onReadPrimitive(mapping, false, null) {
+      when (port.write) {
+        readHalt()
+      }
+      port.enable := True
+    }
+
+    mem
+  }
+
   def readSyncMemWordAligned[T <: Data](mem           : Mem[T],
                                         addressOffset : BigInt,
                                         bitOffset     : Int = 0) : Mem[T] = {
