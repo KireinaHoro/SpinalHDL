@@ -235,6 +235,12 @@ trait BusSlaveFactory extends Area{
     }
   }
 
+  /** Create the memory mapping to read all ones at `addressOffset` for `length` bytes. */
+  def readAllOnes(addressOffset: BigInt, length: BigInt) = {
+    val mapping = SizeMapping(addressOffset, length)
+    readPrimitive(Bits(busDataWidth bits).setAll(), mapping, 0, null)
+  }
+
   /**
     * Create the memory mapping to write that at address.
     * If `that` is bigger than one word it extends the register on following addresses.
