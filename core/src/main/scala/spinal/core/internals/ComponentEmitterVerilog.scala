@@ -124,7 +124,7 @@ class ComponentEmitterVerilog(
           case e           => expressionToWrap += e
         }
 
-        val portName = anonymSignalPrefix + "_" + mem.getName() + "_port" + portId
+        val portName = mem.getName() + "_spinal_port" + portId
         s match {
           case s : Nameable => s.unsetName().setName(portName)
         }
@@ -164,14 +164,16 @@ class ComponentEmitterVerilog(
       .foreach(io => if(io.isOutput) {
         val componentSignalName = (sub.getNameElseThrow + "_" + io.getNameElseThrow)
         val name = component.localNamingScope.allocateName(componentSignalName)
-        if (!io.isSuffix)
+        val noUse = signalNoUse(io)
+        if (!io.isSuffix && ((io.isVital || !noUse) || spinalConfig.emitFullComponentBindings))
           declarations ++= emitExpressionWrap(io, name)
         referencesOverrides(io) = name
       }
     ))
 
     //Wrap expression which need it
-    cutLongExpressions()
+    if(spinalConfig.cutLongExpressions)
+      cutLongExpressions()
     expressionToWrap --= wrappedExpressionToName.keysIterator
 
     component.dslBody.walkStatements { s =>
@@ -362,20 +364,24 @@ class ComponentEmitterVerilog(
         val genericFlat = bb.genericElements
 
         if (genericFlat.nonEmpty) {
-          logics ++= s"#(\n"
-          for (e <- genericFlat) {
+          val ret = genericFlat.map{ e =>
             e match {
-              case (name: String, bt: BaseType) => logics ++= s"    .${name}(${emitExpression(bt.getTag(classOf[GenericValue]).get.e)}),\n"
-              case (name: String, s: String)    => logics ++= s"    .${name}(${"\""}${s}${"\""}),\n"
-              case (name: String, i: Int)       => logics ++= s"    .${name}($i),\n"
-              case (name: String, d: Double)    => logics ++= s"    .${name}($d),\n"
-              case (name: String, b: Boolean)   => logics ++= s"    .${name}(${if(b) "1'b1" else "1'b0"}),\n"
-              case (name: String, b: BigInt)    => logics ++= s"    .${name}(${b.toString(16).size*4}'h${b.toString(16)}),\n"
-              case _                            => SpinalError(s"The generic type ${"\""}${e._1} - ${e._2}${"\""} of the blackbox ${"\""}${bb.definitionName}${"\""} is not supported in Verilog")
+              case (name: String, bt: BaseType)      => name -> s"${emitExpression(bt.getTag(classOf[GenericValue]).get.e)}"
+              case (name: String, rs: VerilogValues) => name -> s"${rs.v}"
+              case (name: String, s: String)         => name -> s"""\"$s\""""
+              case (name: String, i: Int)            => name -> s"$i"
+              case (name: String, d: Double)         => name -> s"$d"
+              case (name: String, b: Boolean)        => name -> s"${if(b) "1'b1" else "1'b0"}"
+              case (name: String, b: BigInt)         => name -> s"${b.toString(16).size*4}'h${b.toString(16)}"
+              case _                                 => SpinalError(s"The generic type ${"\""}${e._1} - ${e._2}${"\""} of the blackbox ${"\""}${bb.definitionName}${"\""} is not supported in Verilog")
             }
           }
-          logics.replace(logics.length - 2, logics.length, "\n")
-          logics ++= s"  ) "
+          val namelens = ret.map(_._1.size).max
+          val exprlens = ret.map(_._2.size).max
+          val params   = ret.map(t =>  s"    .%-${namelens}s (%-${exprlens}s)".format(t._1, t._2))
+          logics ++= s"""#(
+            |${params.mkString(",\n")}
+            |  )""".stripMargin
         }
       }
 
@@ -410,6 +416,8 @@ class ComponentEmitterVerilog(
             case None => None
           }
         } else {
+          val noUse = signalNoUse(data)
+
           val portAlign = s"%-${maxNameLength}s".format(emitReferenceNoOverrides(data))
           val wireAlign = s"${netsWithSection(data)}"
           val comma = if (data == ios.last) " " else ","
@@ -419,7 +427,12 @@ class ComponentEmitterVerilog(
             case spinal.core.inout => "~"
             case _ => SpinalError("Not founded IO type")
           }
-          Some((s"    .${portAlign} (", s"${wireAlign}", s")${comma} //${dirtag}\n"))
+          if(data.isVital || !noUse || spinalConfig.emitFullComponentBindings)
+            Some((s"    .${portAlign} (", s"${wireAlign}", s")${comma} //${dirtag}\n"))
+          else {
+            referencesOverrides.remove(data)
+            Some((s"    .${portAlign} (", s" ", s")${comma} //${dirtag}\n"))
+          }
         }
       }
       val maxNameLengthConNew = if(prepareInstports.isEmpty) 0 else prepareInstports.map(_._2.length()).max
@@ -1703,6 +1716,12 @@ end
     case  e: Operator.BitVector.orR                    => s"(|${emitExpression(e.source)})"
     case  e: Operator.BitVector.andR                   => s"(&${emitExpression(e.source)})"
     case  e: Operator.BitVector.xorR                   => s"(^${emitExpression(e.source)})"
+    case e: Operator.BitVector.IsUnknown =>
+      if (systemVerilog) s"$$isunknown(${emitExpression(e.source)})"
+      else {
+        SpinalWarning(s"IsUnknown is always false since system verilog is not active.")
+        "0"
+      }
 
     case e : Operator.Formal.Past                     => s"$$past(${emitExpression(e.source)}, ${e.delay})"
     case e : Operator.Formal.Rose                     => s"$$rose(${emitExpression(e.source)})"
@@ -1727,8 +1746,36 @@ end
     }
   }
 
+  var outputSignalNoUse: mutable.LinkedHashSet[BaseType] = mutable.LinkedHashSet()
+  if(!spinalConfig.emitFullComponentBindings) {
+    component.children.foreach(sub =>
+      sub.getAllIo
+      .foreach(io => if(io.isOutput) {
+        outputSignalNoUse.add(io)
+      }
+    ))
+    component.dslBody.walkStatements {
+      case s: BaseType =>
+      case s => {
+        s.walkExpression {
+          case e: BaseType => {
+            if(outputSignalNoUse contains e) {
+              outputSignalNoUse.remove(e)
+            }
+          }
+          case _ =>
+        }
+      }
+    }
+  }
+
+  def signalNoUse(sig: BaseType): Boolean = {
+    outputSignalNoUse contains sig
+  }
+
   elaborate()
   fillExpressionToWrap()
   emitEntity()
   emitArchitecture()
+
 }
