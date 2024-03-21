@@ -695,15 +695,20 @@ trait BusSlaveFactory extends Area{
   def readWriteSyncMemWordAligned[T <: Data](mem: Mem[T],
                                              addressOffset: BigInt,
                                              bitOffset: Int = 0,
-                                             memOffset: UInt = U(0).resized): Mem[T] = {
+                                             memOffset: UInt = U(0).resized,
+                                             readUnderWrite: ReadUnderWritePolicy = dontCare,
+                                             duringWrite: DuringWritePolicy = dontCare): Mem[T] = {
     val mapping = SizeMapping(addressOffset,mem.wordCount << log2Up(busDataWidth/8))
     val readMemAddress = readAddress(mapping) >> log2Up(busDataWidth / 8) + memOffset
     val writeMemAddress = writeAddress(mapping) >> log2Up(busDataWidth / 8) + memOffset
 
     val writeMaskWidth = if (writeByteEnable != null) widthOf(writeByteEnable()) else -1
-    val port = mem.readWriteSyncPort(writeMaskWidth, writeFirst)
+    val port = mem.readWriteSyncPort(writeMaskWidth,
+      readUnderWrite = readUnderWrite,
+      duringWrite = duringWrite,
+    )
     port.write := False
-    port.address := port.write ? writeMemAddress | readMemAddress
+    port.address := (port.write ? writeMemAddress | readMemAddress).resized
     port.enable := False
 
     nonStopWrite(port.wdata, bitOffset)
@@ -911,7 +916,7 @@ trait BusSlaveFactoryDelayed extends BusSlaveFactory {
         val read_job = job.asInstanceOf[BusSlaveFactoryRead]
         val current_bits = List.range(read_job.bitOffset, read_job.that.getBitsWidth + read_job.bitOffset, 1)
         for (bit <- current_bits) {
-          assert(!occupied_range.contains(bit), s"BusSlaveFactory DOUBLE-READ-ERROR : bit $bit of bus address ${address.asInstanceOf[SingleMapping].address} should be written by ${read_job.that.getName()} but it is already occupied by another signal at the same address!")
+          assert(!occupied_range.contains(bit), f"BusSlaveFactory DOUBLE-READ-ERROR : bit $bit of bus address ${address.lowerBound}%#x should be written by ${read_job.that.getName()} but it is already occupied by another signal at the same address!")
           occupied_range.append(bit)
         }
       }
