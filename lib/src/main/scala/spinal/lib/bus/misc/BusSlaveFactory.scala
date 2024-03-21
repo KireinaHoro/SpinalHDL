@@ -694,10 +694,11 @@ trait BusSlaveFactory extends Area{
   /** Generate one read-write port.  Write takes priority.  */
   def readWriteSyncMemWordAligned[T <: Data](mem: Mem[T],
                                              addressOffset: BigInt,
-                                             bitOffset: Int = 0): Mem[T] = {
+                                             bitOffset: Int = 0,
+                                             memOffset: UInt = U(0).resized): Mem[T] = {
     val mapping = SizeMapping(addressOffset,mem.wordCount << log2Up(busDataWidth/8))
-    val readMemAddress = readAddress(mapping) >> log2Up(busDataWidth / 8)
-    val writeMemAddress = writeAddress(mapping) >> log2Up(busDataWidth / 8)
+    val readMemAddress = readAddress(mapping) >> log2Up(busDataWidth / 8) + memOffset
+    val writeMemAddress = writeAddress(mapping) >> log2Up(busDataWidth / 8) + memOffset
 
     val writeMaskWidth = if (writeByteEnable != null) widthOf(writeByteEnable()) else -1
     val port = mem.readWriteSyncPort(writeMaskWidth, writeFirst)
