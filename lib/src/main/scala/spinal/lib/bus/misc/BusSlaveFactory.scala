@@ -701,8 +701,8 @@ trait BusSlaveFactory extends Area{
                                              duringWrite: DuringWritePolicy = dontCare): Mem[T] = new Composite(mem, "readWriteSyncMemWordAligned") {
     val len = if (mappingLength == -1) mem.wordCount << log2Up(busDataWidth / 8) else mappingLength
     val mapping = SizeMapping(addressOffset, len)
-    val readMemAddress = readAddress(mapping) >> log2Up(busDataWidth / 8) + memOffset
-    val writeMemAddress = writeAddress(mapping) >> log2Up(busDataWidth / 8) + memOffset
+    val readMemAddress = (readAddress(mapping) >> log2Up(busDataWidth / 8)).resize(mem.addressWidth) + memOffset
+    val writeMemAddress = (writeAddress(mapping) >> log2Up(busDataWidth / 8)).resize(mem.addressWidth) + memOffset
 
     val writeMaskWidth = if (writeByteEnable != null) widthOf(writeByteEnable()) else -1
     val port = mem.readWriteSyncPort(writeMaskWidth,
@@ -739,8 +739,7 @@ trait BusSlaveFactory extends Area{
                                         mappingLength : Int = -1) : Mem[T] = new Composite(mem, "readSyncMemWordAligned") {
     val len = if (mappingLength == -1) mem.wordCount << log2Up(busDataWidth / 8) else mappingLength
     val mapping = SizeMapping(addressOffset, len)
-    println(s"Read sync mem mapping: $mapping")
-    val memAddress = ((readAddress(mapping) >> log2Up(busDataWidth/8)) + memOffset).resized
+    val memAddress = (readAddress(mapping) >> log2Up(busDataWidth/8)).resize(mem.addressWidth) + memOffset
     val readData = mem.readSync(memAddress)
     multiCycleRead(mapping,2)
     readPrimitive(readData, mapping, bitOffset, null)
@@ -756,7 +755,7 @@ trait BusSlaveFactory extends Area{
                                       mappingLength: Int = -1): Mem[T] = new Composite(mem, "readSyncMemMultiWord") {
     val len = if (mappingLength == -1) mem.wordCount << log2Up(busDataWidth / 8) else mappingLength
     val mapping = SizeMapping(addressOffset, len)
-    val memAddress = ((readAddress(mapping) >> log2Up(mem.width / 8)) + memOffset).resized
+    val memAddress = (readAddress(mapping) >> log2Up(mem.width / 8)).resize(mem.addressWidth) + memOffset
     val readData = mem.readSync(memAddress).asBits
     val offset = readAddress(mapping)(log2Up(mem.width / 8) - 1 downto log2Up(busDataWidth / 8))
     val partialRead = readData(offset << log2Up(busDataWidth), busDataWidth bits)
@@ -772,7 +771,7 @@ trait BusSlaveFactory extends Area{
                                      mappingLength : Int = -1) : Mem[T] = new Composite(mem, "writeMemWordAligned") {
     val len = if (mappingLength == -1) mem.wordCount << log2Up(busDataWidth / 8) else mappingLength
     val mapping = SizeMapping(addressOffset, len)
-    val memAddress = ((writeAddress(mapping) >> log2Up(busDataWidth / 8)) + memOffset).resized
+    val memAddress = (writeAddress(mapping) >> log2Up(busDataWidth / 8)).resize(mem.addressWidth) + memOffset
 
     // handle masking
     if (writeByteEnable != null) {
@@ -812,7 +811,7 @@ trait BusSlaveFactory extends Area{
     val maskWidth = mem.width / busDataWidth
     val len = if (mappingLength == -1) mem.wordCount << log2Up(busDataWidth / 8) else mappingLength
     val mapping = SizeMapping(addressOffset, len)
-    val memAddress = (writeAddress(mapping) >> log2Up(mem.width / 8)).resized
+    val memAddress = (writeAddress(mapping) >> log2Up(mem.width / 8)).resize(mem.addressWidth) + memOffset
     val port = mem.writePortWithMask(maskWidth)
     val data = Bits(busDataWidth bits)
 
