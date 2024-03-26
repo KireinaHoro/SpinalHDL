@@ -698,7 +698,7 @@ trait BusSlaveFactory extends Area{
                                              memOffset: UInt = U(0).resized,
                                              mappingLength: Int = -1,
                                              readUnderWrite: ReadUnderWritePolicy = dontCare,
-                                             duringWrite: DuringWritePolicy = dontCare): Mem[T] = {
+                                             duringWrite: DuringWritePolicy = dontCare): Mem[T] = new Composite(mem, "readWriteSyncMemWordAligned") {
     val len = if (mappingLength == -1) mem.wordCount << log2Up(busDataWidth / 8) else mappingLength
     val mapping = SizeMapping(addressOffset, len)
     val readMemAddress = readAddress(mapping) >> log2Up(busDataWidth / 8) + memOffset
@@ -729,14 +729,14 @@ trait BusSlaveFactory extends Area{
       port.enable := True
     }
 
-    mem
-  }
+    val ret = mem
+  }.ret
 
   def readSyncMemWordAligned[T <: Data](mem           : Mem[T],
                                         addressOffset : BigInt,
                                         bitOffset     : Int = 0,
                                         memOffset     : UInt = U(0).resized,
-                                        mappingLength : Int = -1) : Mem[T] = {
+                                        mappingLength : Int = -1) : Mem[T] = new Composite(mem, "readSyncMemWordAligned") {
     val len = if (mappingLength == -1) mem.wordCount << log2Up(busDataWidth / 8) else mappingLength
     val mapping = SizeMapping(addressOffset, len)
     println(s"Read sync mem mapping: $mapping")
@@ -744,8 +744,8 @@ trait BusSlaveFactory extends Area{
     val readData = mem.readSync(memAddress)
     multiCycleRead(mapping,2)
     readPrimitive(readData, mapping, bitOffset, null)
-    mem
-  }
+    val ret = mem
+  }.ret
 
   /**
     * Memory map a Mem to bus for reading. Elements can be larger than bus data width in bits.
@@ -753,7 +753,7 @@ trait BusSlaveFactory extends Area{
   def readSyncMemMultiWord[T <: Data](mem: Mem[T],
                                       addressOffset: BigInt,
                                       memOffset    : UInt = U(0).resized,
-                                      mappingLength: Int = -1): Mem[T] = {
+                                      mappingLength: Int = -1): Mem[T] = new Composite(mem, "readSyncMemMultiWord") {
     val len = if (mappingLength == -1) mem.wordCount << log2Up(busDataWidth / 8) else mappingLength
     val mapping = SizeMapping(addressOffset, len)
     val memAddress = ((readAddress(mapping) >> log2Up(mem.width / 8)) + memOffset).resized
@@ -762,14 +762,14 @@ trait BusSlaveFactory extends Area{
     val partialRead = readData(offset << log2Up(busDataWidth), busDataWidth bits)
     multiCycleRead(mapping, 2)
     readPrimitive(partialRead, mapping, 0, null)
-    mem
-  }
+    val ret = mem
+  }.ret
 
   def writeMemWordAligned[T <: Data](mem           : Mem[T],
                                      addressOffset : BigInt,
                                      bitOffset     : Int = 0,
                                      memOffset     : UInt = U(0).resized,
-                                     mappingLength : Int = -1) : Mem[T] = {
+                                     mappingLength : Int = -1) : Mem[T] = new Composite(mem, "writeMemWordAligned") {
     val len = if (mappingLength == -1) mem.wordCount << log2Up(busDataWidth / 8) else mappingLength
     val mapping = SizeMapping(addressOffset, len)
     val memAddress = ((writeAddress(mapping) >> log2Up(busDataWidth / 8)) + memOffset).resized
@@ -794,15 +794,16 @@ trait BusSlaveFactory extends Area{
       }
       nonStopWrite(port.data, bitOffset)
     }
-    mem
-  }
+    val ret = mem
+  }.ret
 
   /**
     * Memory map a Mem to bus for writing. Elements can be larger than bus data width in bits.
     */
   def writeMemMultiWord[T <: Data](mem: Mem[T],
                                    addressOffset: BigInt,
-                                   mappingLength: Int = -1): Mem[T] = {
+                                   memOffset: UInt = U(0).resized,
+                                   mappingLength: Int = -1): Mem[T] = new Composite(mem, "writeMemMultiWord") {
     // sanity check
     if (mem.width % busDataWidth != 0) {
       PendingError(s"Memory width ${mem.width} must be multiple of bus data width ${busDataWidth} \n${getScalaLocationLong}")
@@ -831,8 +832,8 @@ trait BusSlaveFactory extends Area{
     port.mask := mask.asBits
 
     nonStopWrite(data)
-    mem
-  }
+    val ret = mem
+  }.ret
 }
 
 
