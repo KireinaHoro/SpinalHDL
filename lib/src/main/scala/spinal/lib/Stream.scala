@@ -913,35 +913,35 @@ class StreamMux[T <: Data](dataType: T, portCount: Int) extends Component {
  *  Demultiplex one stream into multiple output streams, always selecting only one at a time.
  */
 object StreamDemux{
-  def apply[T <: Data](input: Stream[T], select : UInt, portCount: Int) : Vec[Stream[T]] = {
+  def apply[T <: Data](input: Stream[T], select : UInt, portCount: Int) : Vec[Stream[T]] = new Composite(input, "demux") {
     val c = new StreamDemux(input.payload,portCount)
     c.io.input << input
     c.io.select := select
-    c.io.outputs
-  }
+    val r = c.io.outputs
+  }.r
 
   /** regSel select uses haltWhen on the selection stream, thus making sure it is only consumed when data is selected.
     * Caution: the other direction is not synchronized. (input valid without selection stream valid). See StreamDemux.joinSel for a fully synchronized version.
     */
-  def regSel[T <: Data](input: Stream[T], select: Stream[UInt], portCount: Int): Vec[Stream[T]] = {
+  def regSel[T <: Data](input: Stream[T], select: Stream[UInt], portCount: Int): Vec[Stream[T]] = new Composite(input, "regSel") {
     val c = new StreamDemux(input.payload, portCount)
     c.io.input << input
     select >> c.io.createStreamRegSelect()
-    c.io.outputs
-  }
+    val r = c.io.outputs
+  }.r
 
   /** joinSel joins the selection stream with the the input stream.
     * Making sure the selection stream is synchronized with the input stream
     * If the select stream payload is out of range for the port count it will stall forever.
     */
-  def joinSel[T <: Data](input: Stream[T], select: Stream[UInt], portCount: Int): Vec[Stream[T]] = {
+  def joinSel[T <: Data](input: Stream[T], select: Stream[UInt], portCount: Int): Vec[Stream[T]] = new Composite(input, "joinSel") {
     val c = new StreamDemux(input.payload, portCount)
     val joined = StreamJoin(input, select)
     assert(!select.valid || select.payload < portCount, L"${select.payload} is bigger than portCount ${portCount.toString()}. Will stall forever".toList)
     c.io.input << joined.map(_._1)
     c.io.select := joined._2
-    c.io.outputs
-  }
+    val r = c.io.outputs
+  }.r
 
   def two[T <: Data](input: Stream[T], select : UInt) : (Stream[T], Stream[T]) = {
     val demux = apply(input, select, 2)
