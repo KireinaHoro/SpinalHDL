@@ -4,14 +4,33 @@ import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.misc._
 
-case class Axi4SlaveFactory(bus: Axi4, cmdPipeline: StreamPipe = StreamPipe.M2S) extends BusSlaveFactoryDelayed {
+case class Axi4SlaveFactory(bus: Axi4, cmdPipeline: StreamPipe = StreamPipe.M2S, addrRemapFunc: UInt => UInt = null) extends BusSlaveFactoryDelayed {
+  implicit class RichMultiData[T <: MultiData](b: T) {
+    def mapElement[E <: Data](locator: T => E)(f: E => E): T = {
+      val ret = b.clone.asInstanceOf[T].allowOverride()
+      ret := b
+      locator(ret) := f(locator(b))
+      ret
+    }
+  }
+
+  implicit class RichStreamMultiData[T <: MultiData](s: Stream[T]) {
+    def mapPayloadElement[E <: Data](locator: T => E)(f: E => E): Stream[T] = {
+      val ret = s.clone
+      ret.translateFrom(s) { case (r, ss) =>
+        r := ss.mapElement(locator)(f)
+      }
+    }
+  }
+
   bus.setCompositeName(this, "bus", true)
 
   val readHaltRequest = False
   val writeHaltRequest = False
 
-  val writeCmd = bus.writeCmd.unburstify.pipelined(cmdPipeline)
-  val writeJoinEvent = StreamJoin.arg(writeCmd, bus.writeData)
+  val writeCmd = bus.writeCmd.unburstify.mapPayloadElement(_.addr)(remap)
+  val writeCmdStage = writeCmd.pipelined(cmdPipeline)
+  val writeJoinEvent = StreamJoin.arg(writeCmdStage, bus.writeData)
   val writeRsp = Stream(Axi4B(bus.config))
   bus.writeRsp << writeRsp.stage()
   when(bus.writeData.last) {
@@ -24,13 +43,13 @@ case class Axi4SlaveFactory(bus: Axi4, cmdPipeline: StreamPipe = StreamPipe.M2S)
     writeRsp.valid := False
   }
 
-  val readCmd = bus.ar.unburstify
+  val readCmd = bus.readCmd.unburstify.mapPayloadElement(_.addr)(remap)
   var readDataStage = readCmd.pipelined(cmdPipeline)
   val readRsp = Axi4R(bus.config)
   bus.readRsp << readDataStage.haltWhen(readHaltRequest).translateWith(readRsp)
 
   // only one outstanding request is supported
-  if(bus.config.useId) writeRsp.id := writeCmd.id
+  if(bus.config.useId) writeRsp.id := writeCmdStage.id
   if (writeRsp.config.useResp) {
     when(writeErrorFlag) {
       writeRsp.setSLVERR()
@@ -53,12 +72,10 @@ case class Axi4SlaveFactory(bus: Axi4, cmdPipeline: StreamPipe = StreamPipe.M2S)
   val readOccur = bus.readRsp.fire
 
   def maskAddress(addr : UInt) = addr & ~U(bus.config.dataWidth/8 -1, bus.config.addressWidth bits)
-  private var remapFunc: UInt => UInt = null
-  private def remap(addr: UInt) = if (remapFunc != null) remapFunc(addr) else addr
-  def remapAddress(mapping: UInt => UInt): this.type = { remapFunc = mapping; this }
+  private def remap(addr: UInt) = if (addrRemapFunc != null) addrRemapFunc(addr) else addr
 
-  def readAddressMasked = maskAddress(remap(readDataStage.addr))
-  def writeAddressMasked = maskAddress(remap(writeCmd.addr))
+  def readAddressMasked = maskAddress(readDataStage.addr)
+  def writeAddressMasked = maskAddress(writeCmdStage.addr)
 
   override def readAddress(): UInt  = readAddressMasked
   override def writeAddress(): UInt  = writeAddressMasked
