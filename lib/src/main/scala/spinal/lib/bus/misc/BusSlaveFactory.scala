@@ -698,7 +698,7 @@ trait BusSlaveFactory extends Area{
                                              memOffset: UInt = U(0).resized,
                                              mappingLength: Int = -1,
                                              readUnderWrite: ReadUnderWritePolicy = dontCare,
-                                             duringWrite: DuringWritePolicy = dontCare): Mem[T] = new Composite(mem, "readWriteSyncMemWordAligned") {
+                                             duringWrite: DuringWritePolicy = dontCare): MemReadWritePort[T] = new Composite(mem, "readWriteSyncMemWordAligned") {
     val len = if (mappingLength == -1) mem.wordCount << log2Up(busDataWidth / 8) else mappingLength
     val mapping = SizeMapping(addressOffset, len)
     val readMemAddress = (readAddress(mapping) >> log2Up(busDataWidth / 8)).resize(mem.addressWidth) + memOffset
@@ -728,9 +728,7 @@ trait BusSlaveFactory extends Area{
       }
       port.enable := True
     }
-
-    val ret = mem
-  }.ret
+  }.port
 
   def readSyncMemWordAligned[T <: Data](mem           : Mem[T],
                                         addressOffset : BigInt,
