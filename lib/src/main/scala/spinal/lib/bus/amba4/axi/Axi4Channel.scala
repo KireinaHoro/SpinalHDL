@@ -278,12 +278,12 @@ object Axi4AxUnburstified{
 
       override def clone: State.this.type = new State().asInstanceOf[this.type]
     }
-    val area = new Area {
+    new Composite(stream, "unburstify") {
       val result = Stream Fragment (outPayloadType)
       val doResult = Bool()
       val addrIncrRange = (Math.min(11, stream.payload.config.addressWidth - 1) downto 0)
 
-      val buffer = new Area{
+      val buffer = new Area {
         val valid       = RegInit(False)
         val len         = Reg(UInt(8 bits))
         val beat        = Reg(UInt(8 bits))
@@ -330,8 +330,7 @@ object Axi4AxUnburstified{
           }
         }
       }
-    }.setWeakName("unburstify")
-    area.result
+    }.result
   }
 }
 

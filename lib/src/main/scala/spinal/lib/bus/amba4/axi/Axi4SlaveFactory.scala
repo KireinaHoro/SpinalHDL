@@ -9,6 +9,7 @@ object Axi4SlaveFactory {
 }
 
 class Axi4SlaveFactory(bus: Axi4) extends BusSlaveFactoryDelayed {
+  bus.setCompositeName(this, "bus", true)
 
   val readHaltRequest = False
   val writeHaltRequest = False
