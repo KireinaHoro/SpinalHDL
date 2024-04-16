@@ -4,17 +4,13 @@ import spinal.core._
 import spinal.lib._
 import spinal.lib.bus.misc._
 
-object Axi4SlaveFactory {
-  def apply(bus: Axi4) = new Axi4SlaveFactory(bus)
-}
-
-class Axi4SlaveFactory(bus: Axi4) extends BusSlaveFactoryDelayed {
+case class Axi4SlaveFactory(bus: Axi4, cmdPipeline: StreamPipe = StreamPipe.M2S) extends BusSlaveFactoryDelayed {
   bus.setCompositeName(this, "bus", true)
 
   val readHaltRequest = False
   val writeHaltRequest = False
 
-  var writeCmd = bus.writeCmd.unburstify
+  val writeCmd = bus.writeCmd.unburstify.pipelined(cmdPipeline)
   val writeJoinEvent = StreamJoin.arg(writeCmd, bus.writeData)
   val writeRsp = Stream(Axi4B(bus.config))
   bus.writeRsp << writeRsp.stage()
@@ -29,7 +25,7 @@ class Axi4SlaveFactory(bus: Axi4) extends BusSlaveFactoryDelayed {
   }
 
   val readCmd = bus.ar.unburstify
-  var readDataStage = readCmd.stage()
+  var readDataStage = readCmd.pipelined(cmdPipeline)
   val readRsp = Axi4R(bus.config)
   bus.readRsp << readDataStage.haltWhen(readHaltRequest).translateWith(readRsp)
 
