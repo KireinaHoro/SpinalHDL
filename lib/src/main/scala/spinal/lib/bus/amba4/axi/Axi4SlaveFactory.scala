@@ -44,9 +44,9 @@ case class Axi4SlaveFactory(bus: Axi4, cmdPipeline: StreamPipe = StreamPipe.M2S,
   }
 
   val readCmd = bus.readCmd.unburstify.mapPayloadElement(_.addr)(remap)
-  var readDataStage = readCmd.pipelined(cmdPipeline)
+  var readCmdStage = readCmd.pipelined(cmdPipeline)
   val readRsp = Axi4R(bus.config)
-  bus.readRsp << readDataStage.haltWhen(readHaltRequest).translateWith(readRsp)
+  bus.readRsp << readCmdStage.haltWhen(readHaltRequest).translateWith(readRsp)
 
   // only one outstanding request is supported
   if(bus.config.useId) writeRsp.id := writeCmdStage.id
@@ -65,8 +65,8 @@ case class Axi4SlaveFactory(bus: Axi4, cmdPipeline: StreamPipe = StreamPipe.M2S,
     }
   }
   readRsp.data := 0
-  readRsp.last := readDataStage.last
-  if(bus.config.useId) readRsp.id := readDataStage.id
+  readRsp.last := readCmdStage.last
+  if(bus.config.useId) readRsp.id := readCmdStage.id
 
   val writeOccur = writeJoinEvent.fire
   val readOccur = bus.readRsp.fire
@@ -74,7 +74,7 @@ case class Axi4SlaveFactory(bus: Axi4, cmdPipeline: StreamPipe = StreamPipe.M2S,
   def maskAddress(addr : UInt) = addr & ~U(bus.config.dataWidth/8 -1, bus.config.addressWidth bits)
   private def remap(addr: UInt) = if (addrRemapFunc != null) addrRemapFunc(addr) else addr
 
-  def readAddressMasked = maskAddress(readDataStage.addr)
+  def readAddressMasked = maskAddress(readCmdStage.addr)
   def writeAddressMasked = maskAddress(writeCmdStage.addr)
 
   override def readAddress(): UInt  = readAddressMasked
@@ -111,7 +111,7 @@ case class Axi4SlaveFactory(bus: Axi4, cmdPipeline: StreamPipe = StreamPipe.M2S,
         case address : SingleMapping =>
           assert(address.address % (bus.config.dataWidth/8) == 0)
           is(address.address) {
-            doMappedReadElements(jobs, readDataStage.valid, readOccur, readRsp.data)
+            doMappedReadElements(jobs, readCmdStage.valid, readOccur, readRsp.data)
           }
         case _ =>
       }
@@ -119,7 +119,7 @@ case class Axi4SlaveFactory(bus: Axi4, cmdPipeline: StreamPipe = StreamPipe.M2S,
 
     for ((address, jobs) <- elementsPerAddress if !address.isInstanceOf[SingleMapping]) {
       when(address.hit(readAddress())) {
-        doMappedReadElements(jobs, readDataStage.valid, readOccur, readRsp.data)
+        doMappedReadElements(jobs, readCmdStage.valid, readOccur, readRsp.data)
       }
     }
   }
