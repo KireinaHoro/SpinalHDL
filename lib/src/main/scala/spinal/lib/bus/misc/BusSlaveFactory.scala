@@ -608,10 +608,14 @@ trait BusSlaveFactory extends Area{
   def readStreamBlockCycles[T <: Data](that: Stream[T], address: BigInt, blockCycles: UInt, timeout: Bool = null): Unit = new Composite(that, "readBlockCycles") {
     val counter = Counter(blockCycles.getWidth bits)
     val wordCount = (1 + that.payload.getBitsWidth - 1) / busDataWidth + 1
+    // compare against our timeout
     val counterWillOverflow = counter === blockCycles
+    val blockCyclesUpdated = RegNext(blockCycles) =/= blockCycles
     val readIssued = False
     val respReady = RegNextWhen(True, readIssued && (counterWillOverflow || (!counterWillOverflow && that.valid))) init False
-    val counterOverflowed = RegNextWhen(True, counterWillOverflow) init False
+    val counterOverflowed = Reg(Bool()) init False
+    counterOverflowed.setWhen(counterWillOverflow)
+    counterOverflowed.clearWhen(blockCyclesUpdated)
     // we only halt the first beat, since if we got a stream payload we got it all
     onReadPrimitive(SingleMapping(address), haltSensitive = false, null) {
       readIssued := True
