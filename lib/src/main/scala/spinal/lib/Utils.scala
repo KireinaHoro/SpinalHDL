@@ -1015,6 +1015,8 @@ class AnyPimped[T <: Any](pimped: T) {
   def ifMap(cond : Boolean)(body : T => T): T ={
     if(cond) body(pimped) else pimped
   }
+
+  def nullOption : Option[T] = if(pimped != null) Some(pimped) else None
 }
 
 
@@ -1089,12 +1091,13 @@ class TraversableOnceAnyPimped[T <: Any](pimped: Seq[T]) {
     ret
   }
 
-  class ReaderOh(oh : TraversableOnce[Bool], bypassIfSingle : Boolean = false) {
+  class ReaderOh(val oh : TraversableOnce[Bool], bypassIfSingle : Boolean = false) {
     def apply[T2 <: Data](f : T => T2) = OHMux.or(oh.toIndexedSeq, pimped.map(f), bypassIfSingle)
   }
 
-  class ReaderSel(sel : UInt) {
+  class ReaderSel(val sel : UInt) {
     def apply[T2 <: Data](f : T => T2) =  pimped.map(f).read(sel)
+    def onSel(body : T => Unit) : Unit = pimped.onSel(sel)(body)
   }
 
   def reader(oh : TraversableOnce[Bool]) = new ReaderOh(oh)
@@ -1337,15 +1340,19 @@ class StringPimped(pimped : String){
 
 
 object PriorityMux{
-  def apply[T <: Data](in: Seq[(Bool, T)]): T = {
+  def apply[T <: Data](in: Seq[(Bool, T)], msbFirst: Boolean = false): T = {
     if (in.size == 1) {
       in.head._2
     } else {
-      Mux(in.head._1, in.head._2, apply(in.tail)) //Inttelij right code marked red
+      var ordered = in
+      if(msbFirst) ordered = in.reverse
+      ordered.reduceBalancedTree((x, y) => {(x._1 | y._1, Mux(x._1, x._2, y._2))})._2
     }
   }
   def apply[T <: Data](sel: Seq[Bool], in: Seq[T]): T = apply(sel zip in)
+  def apply[T <: Data](sel: Seq[Bool], in: Seq[T], msbFirst: Boolean): T = apply(sel zip in, msbFirst)
   def apply[T <: Data](sel: Bits, in: Seq[T]): T = apply(sel.asBools.zip(in))
+  def apply[T <: Data](sel: Bits, in: Seq[T], msbFirst: Boolean): T = apply(sel.asBools.zip(in), msbFirst)
 }
 
 

@@ -417,7 +417,7 @@ object Operator {
 
     class Changed extends UnaryOperator{
       override def getTypeObject = TypeBool
-      override def opName: String = "!$stable(...)"
+      override def opName: String = "$changed(...)"
     }
 
 
@@ -1660,19 +1660,19 @@ abstract class BitVectorRangedAccessFixed extends SubAccess with WidthProvider{
 /** Bits range access with a fix range */
 class BitsRangedAccessFixed extends BitVectorRangedAccessFixed {
   override def getTypeObject  = TypeBits
-  override def opName: String = "Bits(Int downto Int)"
+  override def opName: String = s"Bits($hi downto $lo)"
 }
 
 /** UInt range access with a fix range */
 class UIntRangedAccessFixed extends BitVectorRangedAccessFixed {
   override def getTypeObject  = TypeUInt
-  override def opName: String = "UInt(Int downto Int)"
+  override def opName: String = s"UInt($hi downto $lo)"
 }
 
 /** SInt range access with a fix range */
 class SIntRangedAccessFixed extends BitVectorRangedAccessFixed {
   override def getTypeObject  = TypeSInt
-  override def opName: String = "SInt(Int downto Int)"
+  override def opName: String = s"SInt($hi downto $lo)"
 }
 
 
@@ -2464,10 +2464,14 @@ abstract class BitVectorLiteral() extends Literal with WidthProvider {
   }
 
   def hexString(bitCount: Int, aligin: Boolean = false):String = {
-    val hexCount = scala.math.ceil(bitCount/4.0).toInt
-    val alignCount = if (aligin) (hexCount * 4) else bitCount
-    val unsignedValue = if(value >= 0) value else ((BigInt(1) << alignCount) + value)
-    s"%${hexCount}s".format(unsignedValue.toString(16)).replace(' ','0')
+    if(value == 0){
+      "0"
+    } else {
+      val hexCount = scala.math.ceil(bitCount/4.0).toInt
+      val alignCount = if (aligin) (hexCount * 4) else bitCount
+      val unsignedValue = if(value >= 0) value else ((BigInt(1) << alignCount) + value)
+      s"%${hexCount}s".format(unsignedValue.toString(16)).replace(' ','0')
+    }
   }
 
 

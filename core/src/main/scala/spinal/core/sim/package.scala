@@ -25,6 +25,7 @@ import spinal.core.sim.{SimBaseTypePimper, SpinalSimConfig}
 import spinal.sim._
 
 import java.math.BigInteger
+import java.util.concurrent.atomic.AtomicLong
 import scala.collection.generic.Shrinkable
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -40,6 +41,12 @@ package object sim {
 
   def simRandom(implicit simManager: SimManager = sm) = simManager.random
   def sm = SimManagerContext.current.manager
+
+  def getForbiddenRandom() = {
+    val x = Random.self.getClass.getDeclaredField("seed")
+    x.setAccessible(true)
+    x.get(Random.self).asInstanceOf[AtomicLong]
+  }
 
   @deprecated("Use SimConfig.???.compile(new Dut) instead", "???")
   def SimConfig[T <: Component](rtl: => T): SimConfigLegacy[T] = {
@@ -175,15 +182,23 @@ package object sim {
   /** Sleep / WaitUntil */
   def sleep(cycles: Long): Unit = SimManagerContext.current.thread.sleep(cycles)
   def sleep(cycles: Double): Unit = SimManagerContext.current.thread.sleep(cycles.toLong)
-  def sleep(time: TimeNumber): Unit =
-    sleep((time.toBigDecimal / SimManagerContext.current.manager.timePrecision).setScale(0, BigDecimal.RoundingMode.UP).toLong)
+  def sleep(time: TimeNumber): Unit = {
+    sleep((time.toBigDecimal / timePrecision).setScale(0, BigDecimal.RoundingMode.UP).toLong)
+  }
   def waitUntil(cond: => Boolean): Unit = {
     SimManagerContext.current.thread.waitUntil(cond)
   }
 
   def timeToLong(time : TimeNumber) : Long = {
-    (time.toBigDecimal / SimManagerContext.current.manager.timePrecision).toLong
+    (time.toBigDecimal / timePrecision).toLong
   }
+
+  def hzToLong(hz: HertzNumber): Long = {
+    (1 / hz.toBigDecimal / timePrecision).toLong
+  }
+
+
+  def timePrecision = SimManagerContext.current.manager.timePrecision
 
   /** Fork */
   def fork(body: => Unit): SimThread = SimManagerContext.current.manager.newThread(body)
@@ -914,7 +929,7 @@ package object sim {
       }
     }
 
-    def doStimulus(period: Long): Unit = {
+    def doStimulus(period: Long, resetCycles : Int = 16): Unit = {
       assert(period >= 2)
 
       if(cd.hasClockEnableSignalSim) assertClockEnable()
@@ -932,7 +947,7 @@ package object sim {
               case LOW => true
             })
             sleep(0)
-            DoReset(resetSim, period*16, cd.config.resetActiveLevel)
+            DoReset(resetSim, period*resetCycles, cd.config.resetActiveLevel)
           }
           sleep(period)
           DoClock(clockSim, period)
@@ -941,7 +956,7 @@ package object sim {
           cd.assertReset()
           val clk = clockSim
           var value = clk.toBoolean
-          for(repeat <- 0 to 31){
+          for(repeat <- 0 to resetCycles*2){
             value = !value
             clk #= value
             sleep(period >> 1)
@@ -955,10 +970,18 @@ package object sim {
       } else {
         throw new Exception("???")
       }
-
     }
 
-    def forkStimulus(period: Long, sleepDuration : Int = 0) : Unit = {
+    def forkStimulus() : Unit = {
+      val hz = cd.frequency match {
+        case ClockDomain.FixedFrequency(value) => value.toBigDecimal
+        case _ => throw new Exception(s"Can't forkStimulus() w/o explicit frequency since frequency of ClockDomain $cd is not known")
+      }
+      val period = (1 / hz / timePrecision).setScale(0, BigDecimal.RoundingMode.UP).toLong
+      forkStimulus(period, 0)
+    }
+    def forkStimulus(period: Long) : Unit = forkStimulus(period, 0)
+    def forkStimulus(period: Long, sleepDuration : Int = 0, resetCycles : Int = 16) : Unit = {
       cd.config.clockEdge match {
         case RISING  => fallingEdge()
         case FALLING => risingEdge()
@@ -966,7 +989,7 @@ package object sim {
       if(cd.hasResetSignalSim) cd.deassertReset()
       if(cd.hasSoftResetSignalSim) cd.deassertSoftReset()
       if(cd.hasClockEnableSignalSim) cd.deassertClockEnable()
-      fork(doStimulus(period))
+      fork(doStimulus(period, resetCycles))
       if(sleepDuration >= 0) sleep(sleepDuration) //This allows the doStimulus to give initial value to clock/reset before going further
     }
 

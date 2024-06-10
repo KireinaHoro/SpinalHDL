@@ -2,6 +2,8 @@ package spinal.lib
 
 import spinal.core._
 import spinal.core.fiber._
+import spinal.core.sim.SimDataPimper
+
 import scala.collection.Seq
 import scala.collection.mutable.ArrayBuffer
 
@@ -218,7 +220,7 @@ class ResetHolder(cycles: Int, pol: Polarity) extends Area {
 class ResetCtrlFiber(val config: ClockDomainConfig = ClockDomain.defaultConfig) extends Area {
   val lock = spinal.core.fiber.Lock()
 
-  val reset = Bool()
+  val reset = Bool().simPublic()
   val cd = ClockDomain.current.copy(reset = reset, config = config)
   var holdCycles = 64
   var withBootReset = false
@@ -241,6 +243,10 @@ class ResetCtrlFiber(val config: ClockDomainConfig = ClockDomain.defaultConfig) 
     this
   }
 
+  def addAsyncReset(ctrl: ResetCtrlFiber): this.type = {
+    addAsyncReset(ctrl.reset, ctrl.config.resetActiveLevel)
+    this
+  }
   def addReset(ctrl: ResetCtrlFiber): this.type = {
     addAsyncReset(ctrl.reset, ctrl.config.resetActiveLevel)
     this

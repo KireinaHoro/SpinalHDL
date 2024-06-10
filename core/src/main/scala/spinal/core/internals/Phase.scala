@@ -21,17 +21,16 @@
 package spinal.core.internals
 
 import java.io.{BufferedWriter, File, FileWriter}
-
 import scala.collection.mutable.ListBuffer
 import spinal.core._
-import spinal.core.fiber.Engine
+import spinal.core.fiber.{AsyncThread, Engine}
 import spinal.core.internals.Operator.BitVector
 
 import scala.collection.{immutable, mutable}
 import scala.collection.mutable.ArrayBuffer
 import spinal.core.internals._
-import java.util
 
+import java.util
 import scala.io.Source
 import scala.util.Random
 
@@ -114,6 +113,8 @@ class PhaseContext(val config: SpinalConfig) {
   }
 
   def sortedComponents = components().sortWith(_.level > _.level)
+
+  val svInterface = mutable.LinkedHashMap[String, StringBuilder]()
 
   def walkAll(func: Any => Unit): Unit = {
     GraphUtils.walkAllComponents(topLevel, c => {
@@ -2035,7 +2036,7 @@ class PhaseCheckIoBundle extends PhaseCheck{
   }
 }
 
-class PhaseCheckHiearchy extends PhaseCheck{
+class PhaseCheckHierarchy extends PhaseCheck{
 
   override def impl(pc: PhaseContext): Unit = {
     import pc._
@@ -2558,7 +2559,7 @@ class PhaseCreateComponent(gen: => Component)(pc: PhaseContext) extends PhaseNet
       binarySequential
       binaryOneHot
       val top = gen
-      fiber.hardFork(ctx.globalData.elab.runSync()).setName("global_elab")
+      fiber.hardFork{AsyncThread.current.setName("spinal_elab"); ctx.globalData.elab.runSync()}.setName("spinal_elab")
       if(top.isInBlackBoxTree){
         SpinalError(s"The toplevel can't be a BlackBox (${top.getClass.getSimpleName})")
       }
@@ -2761,7 +2762,7 @@ object SpinalVhdlBoot{
     phases += new PhaseCollectAndNameEnum(pc)
 
     phases += new PhaseCheckIoBundle()
-    phases += new PhaseCheckHiearchy()
+    phases += new PhaseCheckHierarchy()
     phases += new PhaseAnalog()
     phases += new PhaseNextifyReg()
     phases += new PhaseRemoveUselessStuff(false, false)
@@ -2887,7 +2888,7 @@ object SpinalVerilogBoot{
     phases += new PhaseCollectAndNameEnum(pc)
 
     phases += new PhaseCheckIoBundle()
-    phases += new PhaseCheckHiearchy()
+    phases += new PhaseCheckHierarchy()
     phases += new PhaseAnalog()
     phases += new PhaseNextifyReg()
     phases += new PhaseRemoveUselessStuff(false, false)
@@ -2913,6 +2914,10 @@ object SpinalVerilogBoot{
     phases += new PhasePropagateNames(pc)
     phases += new PhaseAllocateNames(pc)
     phases += new PhaseDevice(pc)
+
+    if(config.mode == SystemVerilog && config.svInterface) {
+      phases += new PhaseInterface(pc)
+    }
 
     phases += new PhaseGetInfoRTL(prunedSignals, unusedSignals, counterRegister, blackboxesSourcesPaths)(pc)
 
