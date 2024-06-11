@@ -76,8 +76,7 @@ object VivadoConstraintWriter {
     }
     val sourceLocator = if (source.isReg && !resetIsDriver) {
       // source is register inside spinal design
-      // f"set source [get_cells -hier -filter {NAME =~ */${source.getRtlPath()}_reg*}]"
-      f"set source [get_cells ${source.getRtlPath()}_reg*]"
+      f"set source [get_cells -hier -filter {NAME =~ */${source.getRtlPath()}_reg*}]"
     } else {
       findDriverCell(falsePathTag.source.get.getName())
     }
@@ -88,9 +87,8 @@ object VivadoConstraintWriter {
       s"""
          |# CDC constaints for ${source.getRtlPath()} -> ${target} in ${s.component.getPath()}
          |$sourceLocator
-         |set_false_path$quiet -from $$source -to [get_pins -regexp ${target}_reg*/$pinName]
+         |set_false_path$quiet -from $$source -to [get_pins -hier -regexp -filter {NAME =~ ".*/${target}_reg.*/$pinName"}]
          |""".stripMargin)
-    // |set_false_path$quiet -from $$source -to [get_pins -hier -regexp -filter {NAME =~ ".*/${target}_reg.*/$pinName"}]
 
   }
 
@@ -110,13 +108,10 @@ object VivadoConstraintWriter {
          |# CDC constraints for ${source.getRtlPath()} -> ${target.getRtlPath()} in ${s.component.getPath()}
          |${findClockPeriod(sourceCD, s.component.getName(), "src_clk_period")}
          |${findClockPeriod(targetCD, s.component.getName(), "dst_clk_period")}
-         |set source [get_cells ${source.getRtlPath()}_reg*]
-         |set_max_delay -from $$source -to [get_pins ${target.getRtlPath()}_reg*/D] [$maxDelay] -datapath_only
-         |set_bus_skew -from $$source -to [get_pins ${target.getRtlPath()}_reg*/D] $$dst_clk_period
+         |set source [get_cells -hier -filter {NAME =~ */${source.getRtlPath()}_reg*}]
+         |set_max_delay -from $$source -to [get_pins -hier -filter {NAME =~ */${target.getRtlPath()}_reg*/D}] [$maxDelay] -datapath_only
+         |set_bus_skew -from $$source -to [get_pins -hier -filter {NAME =~ */${target.getRtlPath()}_reg*/D}] $$dst_clk_period
          |""".stripMargin)
-    // |set source [get_cells -hier -filter {NAME =~ */${source.getRtlPath()}_reg*}]
-    // |set_max_delay -from $$source -to [get_pins -hier -filter {NAME =~ */${target.getRtlPath()}_reg*/D}] [$maxDelay] -datapath_only
-    // |set_bus_skew -from $$source -to [get_pins -hier -filter {NAME =~ */${target.getRtlPath()}_reg*/D}] $$dst_clk_period
   }
 
   def writeClockDef(cd: ClockDomain, writer: Writer): Unit = {
