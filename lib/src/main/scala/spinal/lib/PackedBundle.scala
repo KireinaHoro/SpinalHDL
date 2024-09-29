@@ -75,7 +75,10 @@ class PackedBundle extends Bundle {
     */
   def mappings = mapBuilder.mapping
 
-  def packed: Bits = {
+  @deprecated("Use `asBits` instead of `pack`.", "???")
+  def packed: Bits = this.asBits
+
+  override def asBits: Bits = {
     val maxWidth = mappings.map(_._1.high).max + 1
     val packed = B(0, maxWidth bit).allowOverride()
     for ((range, data) <- mappings) {
@@ -98,34 +101,57 @@ class PackedBundle extends Bundle {
     packed
   }
 
-  def unpack(bits: Bits): Unit = unpack(bits, bits.getBitsWidth, 0)
-
-  def unpack(bits: Bits, hi: Int, lo: Int): Unit = {
+  override def assignFromBits(bits: Bits, hi: Int, lo: Int): Unit = {
     for ((elRange, el) <- mappings) {
       // Check if the assignment range falls within the current data's range
       // This happens when the data range's high or low falls within the assignment's hi and lo
       // ...or whenever lo isn't past the data range's high and hi isn't below the data range's low
       if ((elRange.low >= lo && elRange.low < hi) || (elRange.high >= lo && elRange.high < hi)) {
-        if (elRange.step > 0) {
-          // "Little endian" -- ascending range
-          val subBits = bits(elRange).resize(el.getBitsWidth)
-          el match {
-            case subPacked: PackedBundle => subPacked.unpack(subBits)
-            case _                       => el.assignFromBits(subBits)
+        val subBits = {
+          if (elRange.step > 0) {
+            // "Little endian" -- ascending range
+            bits(elRange).resize(el.getBitsWidth)
+          } else {
+            // "Big endian" -- descending range
+            bits(elRange).resizeLeft(el.getBitsWidth)
           }
-        } else {
-          // "Big endian" -- descending range
-          val subBits = bits(elRange).resizeLeft(el.getBitsWidth)
-          el match {
-            case subPacked: PackedBundle => subPacked.unpack(subBits)
-            case _                       => el.assignFromBits(subBits)
-          }
+        }
+        el match {
+          case subPacked: PackedBundle => subPacked.assignFromBits(subBits)
+          case _                       => el.assignFromBits(subBits)
         }
       }
     }
   }
 
-  def getPackedWidth: Int = mappings.map(_._1.high).max + 1
+  override def assignFromBits(bits: Bits): Unit = {
+    for ((elRange, el) <- mappings) {
+      val subBits = {
+        if (elRange.step > 0) {
+          // "Little endian" -- ascending range
+          bits(elRange).resize(el.getBitsWidth)
+        } else {
+          // "Big endian" -- descending range
+          bits(elRange).resizeLeft(el.getBitsWidth)
+        }
+      }
+      el match {
+        case subPacked: PackedBundle => subPacked.assignFromBits(subBits)
+        case _                       => el.assignFromBits(subBits)
+      }
+    }
+  }
+
+  @deprecated("Use `assignFromBits` instead of `unpack`.", "???")
+  def unpack(bits: Bits): Unit = this.assignFromBits(bits)
+
+  @deprecated("Use `assignFromBits` instead of `unpack`.", "???")
+  def unpack(bits: Bits, hi: Int, lo: Int): Unit = this.assignFromBits(bits, hi, lo)
+
+  override def getBitsWidth: Int = mappings.map(_._1.high).max + 1
+
+  @deprecated("Use `getBitsWidth` instead of `getPackedWidth`", "???")
+  def getPackedWidth: Int = this.getBitsWidth
 
   implicit class DataPositionEnrich[T <: Data](t: T) {
 
