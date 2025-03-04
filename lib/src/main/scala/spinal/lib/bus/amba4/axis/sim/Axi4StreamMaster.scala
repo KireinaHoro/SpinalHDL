@@ -19,6 +19,7 @@ import scala.util.Random
  *                        default to 0.0 (no null bytes inserted)
  * @param maxNullSegment maximum length of null (TKEEP=0) segment in the middle of the stream;
  *                       default to 0 (no null bytes)
+ * @param nullSegmentOnlyAtBeginning insert null segment only at the beginning
  * @example
  * {{{
  *   SimConfig.compile(new Component {
@@ -32,12 +33,15 @@ import scala.util.Random
  *   }
  * }}}
  */
-case class Axi4StreamMaster(axis: Axi4Stream, clockDomain: ClockDomain, nullSegmentProb: Double = 0.0, maxNullSegment: Int = 0) {
+case class Axi4StreamMaster(axis: Axi4Stream, clockDomain: ClockDomain,
+                            nullSegmentProb: Double = 0.0,
+                            maxNullSegment: Int = 0,
+                            nullSegmentOnlyAtBeginning: Boolean = false) {
   private val busConfig = axis.config
   private val queue = mutable.Queue[Axi4StreamBundle => Unit]()
 
   private def log(msg: String): Unit = {
-    println(s"Axi4StreamMaster: $msg")
+    println(s"Axi4StreamMaster\t: $msg")
   }
 
   /** Send synchronously a full transaction to the bus. */
@@ -56,9 +60,12 @@ case class Axi4StreamMaster(axis: Axi4Stream, clockDomain: ClockDomain, nullSegm
       log(s"not using strb or keep but length not multiple of data width; data will be zero padded")
     }
 
-    val beats = (data.flatMap { byte =>
-      val numNullBytes = if (maxNullSegment == 0) 0 else
-        (Random.nextFloat() < nullSegmentProb).toInt * Random.nextInt(maxNullSegment)
+    val beats = (data.zipWithIndex.flatMap { case (byte, idx) =>
+      val numNullBytes =
+        if (maxNullSegment == 0 || (nullSegmentOnlyAtBeginning && idx != 0))
+          0
+        else
+          (Random.nextFloat() < nullSegmentProb).toInt * Random.nextInt(maxNullSegment)
       Seq.fill(numNullBytes)((0.toByte, 0)) ++ Seq((byte, 1))
     } padTo(fullLength, (0.toByte, 0)) grouped busConfig.dataWidth).toList
     log(s"initiating send, ${beats.length} beats in total")
