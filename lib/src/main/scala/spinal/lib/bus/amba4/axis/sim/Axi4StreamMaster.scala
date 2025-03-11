@@ -95,6 +95,8 @@ case class Axi4StreamMaster(axis: Axi4Stream, clockDomain: ClockDomain,
     }
   }
 
+  def setFactor(x: Float) = driver.setFactor(x)
+
   /** Reset bus slave (dropping all pending transactions) */
   def reset(): Unit = {
     queue.clear
