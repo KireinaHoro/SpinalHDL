@@ -609,7 +609,7 @@ trait BusSlaveFactory extends Area{
     val counter = Counter(blockCycles.getWidth bits)
     val wordCount = (1 + that.payload.getBitsWidth - 1) / busDataWidth + 1
     // compare against our timeout
-    val counterWillOverflow = counter === blockCycles
+    val counterWillOverflow = counter >= blockCycles
     val blockCyclesUpdated = RegNext(blockCycles) =/= blockCycles
     val readIssued = False
     val respReady = RegNextWhen(True, readIssued && (counterWillOverflow || (!counterWillOverflow && that.valid))) init False
