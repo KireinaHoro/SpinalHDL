@@ -33,7 +33,8 @@ case class Axi4SlaveFactory(bus: Axi4, cmdPipeline: StreamPipe = StreamPipe.M2S,
   val writeJoinEvent = StreamJoin.arg(writeCmdStage, bus.writeData)
   val writeRsp = Stream(Axi4B(bus.config))
   bus.writeRsp << writeRsp.stage()
-  when(bus.writeData.last) {
+  val writeDataLast = if(bus.writeData.last != null) bus.writeData.last else True
+  when(writeDataLast) {
     // backpressure in last beat
     writeJoinEvent.ready := writeRsp.ready && !writeHaltRequest
     writeRsp.valid := writeJoinEvent.fire
@@ -65,7 +66,10 @@ case class Axi4SlaveFactory(bus: Axi4, cmdPipeline: StreamPipe = StreamPipe.M2S,
     }
   }
   readRsp.data := 0
-  readRsp.last := readCmdStage.last
+
+  if(readRsp.last != null) {
+    readRsp.last := readCmdStage.last
+  }
   if(bus.config.useId) readRsp.id := readCmdStage.id
 
   val writeOccur = writeJoinEvent.fire

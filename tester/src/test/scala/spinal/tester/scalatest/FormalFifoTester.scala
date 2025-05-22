@@ -7,15 +7,41 @@ import spinal.lib.formal._
 
 class FormalFifoTester extends SpinalFormalFunSuite {
 
+  def formalTestEdgeCases(depth: Int,
+                          withBypass: Boolean
+                         ): Unit = test(s"StreamFifoEdgeCases_depth.$depth-withBypass.$withBypass") {
+    var formalCfg = FormalConfig
+      .withBMC(10)
+
+    formalCfg
+      // .withDebug
+      .doVerify(new Component {
+        val dut = FormalDut(new StreamFifo(UInt(8 bits), depth, withBypass=withBypass, withAsyncRead=withBypass))
+        dut.io.push.valid := True
+        dut.io.push.payload := anyseq(UInt(8 bits))
+        dut.io.pop.ready := anyseq(Bool())
+
+        assume(dut.io.push.payload.lsb === False)
+
+        assert(dut.formalCheckRam(_.lsb).asBits.orR === False)
+
+        when(dut.io.pop.valid) {
+          assume(dut.io.pop.payload.lsb === False)
+        }
+
+      })
+  }
+
   // @NOTE Passes BMC and Cover test for all StreamFifo configurations
   // @TODO Passes induction Prove only for forFMax=true, fix for forFMax=false
   // this requires assertions to establish pop/push relationship with counters for all cases
   // @TODO Stream.formalCheckRam() should check Vec on useVec
-  def formalTestStreamFifo(depth: Int,
-                     withAsyncRead: Boolean,
-                     withBypass: Boolean,
-                     forFMax : Boolean,
-                     allowExtraMsb : Boolean): Unit = test(s"StreamFifo_depth.$depth-withAsyncRead.$withAsyncRead-withBypass.$withBypass-forFMax.$forFMax-allowExtraMsb.$allowExtraMsb") {
+  def formalTestStreamFifo(backend: FormalBackend,
+                           depth: Int,
+                           withAsyncRead: Boolean,
+                           withBypass: Boolean,
+                           forFMax : Boolean,
+                           allowExtraMsb : Boolean): Unit = test(s"StreamFifo_depth.$depth-withAsyncRead.$withAsyncRead-withBypass.$withBypass-forFMax.$forFMax-allowExtraMsb.$allowExtraMsb-backend.$backend") {
 
     // it's not really testing much logic, so not used as argument
     val useVec = false
@@ -41,7 +67,10 @@ class FormalFifoTester extends SpinalFormalFunSuite {
     val dataWidth = 7
 
     // @TODO Passes BMC and Cover test for isPow2(depth >= 4) StreamFifo configurations
-    var formalCfg = FormalConfig.withBMC(coverCycles + 2).withCover(coverCycles)
+    var formalCfg = FormalConfig
+      .withBackend(backend)
+      .withBMC(coverCycles + 2)
+      .withCover(coverCycles)
     // @TODO Passes Prove only for forFMax=true, TODO forFMax=false cases
     if (forFMax==true) formalCfg.withProve(coverCycles)
     formalCfg
@@ -163,18 +192,27 @@ class FormalFifoTester extends SpinalFormalFunSuite {
 
   // @NOTE depth < 2 will fail due to the formal test assuming FIFO RAM
   // @TODO useVec is not yet supported in formal, should be easy to add
-  for (depth <- List(3, 4, 7);
+  for (backend <- List(SymbiYosysFormalBackend, GhdlFormalBackend);
+    depth <- List(3, 4, 7);
     withAsyncRead <- List(false, true);
     withBypass <- List(false, true);
     forFMax <- List(false, true);
     allowExtraMsb <- List(false, true);
 
   if !(!withAsyncRead && withBypass)) {
-    formalTestStreamFifo(depth = depth,
+    formalTestStreamFifo(backend,
+      depth = depth,
       withAsyncRead = withAsyncRead,
       withBypass = withBypass,
       forFMax = forFMax,
       allowExtraMsb = allowExtraMsb
     )
   }
+
+
+  for (depth <- List(0, 1);
+       withBypass <- List(false, true))
+
+    formalTestEdgeCases(depth, withBypass)
+
 }
