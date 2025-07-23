@@ -53,6 +53,7 @@ case class Axi4ReadOnlyErrorSlave(axiConfig: Axi4Config) extends Component{
   }
 
   io.axi.readRsp.valid := sendRsp
+  io.axi.readRsp.data.assignDontCare()
   if(axiConfig.useId) io.axi.readRsp.id := id
   if(axiConfig.useResp) io.axi.readRsp.setDECERR
   if(axiConfig.useLast) io.axi.readRsp.last := remainingZero
