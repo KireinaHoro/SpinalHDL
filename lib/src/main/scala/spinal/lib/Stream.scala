@@ -877,12 +877,14 @@ class StreamArbiter[T <: Data](dataType: HardType[T], val portCount: Int)(val ar
   * 
   * @see [[https://spinalhdl.github.io/SpinalDoc-RTD/master/SpinalHDL/Libraries/stream.html#streamarbiter Stream documentation]]
   */
-class StreamArbiterFactory {
+class StreamArbiterFactory(name: String) {
   var arbitrationLogic: (StreamArbiter[_ <: Data]) => Area = StreamArbiter.Arbitration.lowerFirst
   var lockLogic: (StreamArbiter[_ <: Data]) => Area = StreamArbiter.Lock.transactionLock
 
   def build[T <: Data](dataType: HardType[T], portCount: Int): StreamArbiter[T] = {
-    new StreamArbiter(dataType, portCount)(arbitrationLogic, lockLogic)
+    val ret = new StreamArbiter(dataType, portCount)(arbitrationLogic, lockLogic)
+    if (name.nonEmpty) ret.setName(name)
+    ret
   }
 
   def buildOn[T <: Data](inputs : Seq[Stream[T]]): StreamArbiter[T] = {
