@@ -153,7 +153,7 @@ case class Axi4Master(axi: Axi4, clockDomain: ClockDomain, name: String = "unnam
       for (beat <- 0 to len) {
         rQueue(id) += { r =>
           if (busConfig.useLast) assert(r.last.toBoolean == (beat == len), "bad last beat")
-          if (busConfig.useResp) assert(r.resp.toInt == Okay.id, s"bad resp ${r.resp.toInt}")
+          if (busConfig.useResp) assert(r.resp.toInt == Okay.id, f"bad RRESP ${r.resp.toInt} (ARADDR was $address%#x)")
           val data = r.data.toBigInt
           val beatAddress = burst match {
             case Fixed => address
@@ -313,7 +313,7 @@ case class Axi4Master(axi: Axi4, clockDomain: ClockDomain, name: String = "unnam
       }
 
       bQueue(id) += { b =>
-        if (busConfig.useResp) assert(b.resp.toInt == Okay.id, s"bad resp ${b.resp.toInt}")
+        if (busConfig.useResp) assert(b.resp.toInt == Okay.id, f"bad BRESP ${b.resp.toInt} (AWADDR was $roundedAddress%#x)")
         log("B", s"transaction finished resp ${b.resp.toInt}")
         callback
       }
