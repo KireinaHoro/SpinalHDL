@@ -146,7 +146,7 @@ case class Axi4Master(axi: Axi4, clockDomain: ClockDomain, name: String = "unnam
       if (busConfig.useBurst) ar.burst #= burst.id
       if (busConfig.useLen) ar.len #= len
       if (busConfig.useSize) ar.size #= size
-      log("AR", f"addr $address%#x size $size len $len burst $burst")
+      log("AR", f"addr $address%#x id $id size $size len $len burst $burst")
 
       val builder = new mutable.ArrayBuilder.ofByte
 
@@ -294,7 +294,7 @@ case class Axi4Master(axi: Axi4, clockDomain: ClockDomain, name: String = "unnam
       if (busConfig.useLen) aw.len #= len
       if (busConfig.useSize) aw.size #= size
       if (busConfig.useBurst) aw.burst #= burst.id
-      log("AW", f"addr $roundedAddress%#x size $size len $len burst $burst")
+      log("AW", f"addr $roundedAddress%#x id $id size $size len $len burst $burst")
 
       for (beat <- 0 to len) {
         wQueue += { w =>
