@@ -36,7 +36,8 @@ import scala.util.Random
 case class Axi4StreamMaster(axis: Axi4Stream, clockDomain: ClockDomain,
                             nullSegmentProb: Double = 0.0,
                             maxNullSegment: Int = 0,
-                            nullSegmentOnlyAtBeginning: Boolean = false) {
+                            nullSegmentOnlyAtBeginning: Boolean = false,
+                            allowStall: Boolean = true) {
   private val busConfig = axis.config
   private val queue = mutable.Queue[Axi4StreamBundle => Unit]()
 
@@ -93,6 +94,10 @@ case class Axi4StreamMaster(axis: Axi4Stream, clockDomain: ClockDomain,
       queue.dequeue()(b)
       true
     }
+  }
+  if (!allowStall) {
+    // ignore (override) TREADY
+    axis.ready #= true
   }
 
   def setFactor(x: Float) = driver.setFactor(x)
