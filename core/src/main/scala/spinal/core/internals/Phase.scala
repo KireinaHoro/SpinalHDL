@@ -1199,7 +1199,7 @@ class PhaseMemBlackBoxingGeneric(policy: MemBlackboxingPolicy) extends PhaseMemB
 object classNameOf{
   def apply(that : Any): String = {
     val name = that.getClass.getSimpleName.replace("$",".").split("\\.").head
-    if(name.nonEmpty) name else "unamed"
+    if(name.nonEmpty) name else "unnamed"
   }
 }
 
@@ -2223,7 +2223,7 @@ class PhaseRemoveUselessStuff(postClockPulling: Boolean, tagVitals: Boolean) ext
 
     val keepNamed = !pc.config.removePruned
     walkStatements{
-      case s: BaseType => if((keepNamed || s.dontSimplify) && s.isNamed && (s.namePriority >= Nameable.USER_WEAK || s.isVital)) propagate(s, false)
+      case s: BaseType             => if((keepNamed || s.dontSimplify) && s.isNamed && (s.namePriority >= Nameable.USER_WEAK || s.isVital) || s.isAnalog) propagate(s, false)
       case s: DeclarationStatement => if(keepNamed && s.isNamed) propagate(s, false)
       case s: AssertStatement      => if(s.kind == AssertStatementKind.ASSERT || pc.config.formalAsserts) propagate(s, false)
       case s: TreeStatement        =>
@@ -2884,13 +2884,13 @@ class PhasePropagateNames(pc: PhaseContext) extends PhaseMisc {
     import pc._
     val algoId = globalData.allocateAlgoIncrementale() //Allows to avoid chaining allocated names
 
-    // All unamed signals are cleaned up to avoid composite / partial name side effects
+    // All unnamed signals are cleaned up to avoid composite / partial name side effects
     walkStatements{
       case bt : BaseType if bt.isUnnamed => bt.unsetName()
       case _ =>
     }
 
-    // propagate all named signals names to their unamed drivers
+    // propagate all named signals names to their unnamed drivers
     walkStatements{
       case dst : BaseType => if (dst.isNamed && dst.algoIncrementale != algoId) {
         def explore(bt: BaseType, depth : Int): Unit = {

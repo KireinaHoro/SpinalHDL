@@ -10,15 +10,8 @@ class TupleBundleBase extends Bundle {
     super.valCallbackRec(ref, name.tail)
   }
 
-  def asRevertedBits: Bits = {
-    var ret: Bits = null
-    for ((_, e) <- elements) {
-      if (ret == null.asInstanceOf[Object]) ret = e.asBits
-      else ret = e.asBits ## ret
-    }
-    if (ret.asInstanceOf[Object] == null) ret = Bits(0 bits)
-    ret
-  }
+  @deprecated("misspelled method will be removed", "???")
+  def asRevertedBits: Bits = asReversedBits
 
   override def elements: ArrayBuffer[(String, Data)] = elementsCache.reverse
 }

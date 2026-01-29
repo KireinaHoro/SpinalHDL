@@ -18,6 +18,7 @@ class SpinalSimAFixTester extends SpinalAnyFunSuite {
       check(4095,0,0)(AFix.U(12 bits)) //Q12.0
       check(4095,0,-4)(AFix.U(8 exp, 12 bits)) //Q8.4
       check(4095,0,-4)(AFix.U(8 exp, -4 exp)) //Q8.4
+      check(4095,0,-4)(AFix.U(12 bits, -4 exp)) //Q8.4
       check(4095,0,-4)(AFix.UQ(8 bits, 4 bits)) //Q8.4
 //      check(4095,0,-4)(AFix.U(255, -4 exp)) //Q8.4
 //      check(4095,2048,-4)(AFix.U(255, 128, -4 exp)) //Q8.4
@@ -26,6 +27,7 @@ class SpinalSimAFixTester extends SpinalAnyFunSuite {
       check(2047,-2048,0)(AFix.S(12 bits)) //Q11.0 + sign bit
       check(2047,-2048,-4)(AFix.S(7 exp, 12 bits)) //Q7.4  + sign bit
       check(2047,-2048,-4)(AFix.S(7 exp, -4 exp)) //Q7.4  + sign bit
+      check(2047,-2048,-4)(AFix.S(12 bits, -4 exp)) //Q7.4  + sign bit
       check(2047,-2048,-4)(AFix.SQ(7 bits, 4 bits)) //Q8.4 + sign bit
 //      check(2047,-2048,-4)(AFix.S(127, -128, -4 exp)) //Q7.4 + sign bit
       check(2047, -2048, 0)(AFix(QFormat(12, 0, true))) // 12 bits wide, 11 integral bits, 0 fractional bits, 1 sign bit
@@ -107,6 +109,17 @@ class SpinalSimAFixTester extends SpinalAnyFunSuite {
         }
       }
     }
+  }
+
+  test("resize_no_op") {
+    SimConfig.compile(new Component {
+      val original = AFix.U(3 exp, 0 exp)
+      val resized = original.resize(0 exp)
+      assert(original.getBitsWidth == resized.getBitsWidth)
+      assert(original.exp == resized.exp)
+      assert(original.maxRaw == resized.maxRaw)
+      assert(original.minRaw == resized.minRaw)
+    })
   }
 
   test("arithmetic_shift") {
