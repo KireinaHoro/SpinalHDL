@@ -157,6 +157,7 @@ object TimingExtractor {
     case s : SwitchStatement => None
     case s : Mem[_] => None
     case p : MemReadSync => Some(p.clockDomain)
+    case p : MemReadAsync => None
     case p : MemReadWrite => Some(p.clockDomain)
     case p : MemReadAsyncWrite => Some(p.clockDomain)
     case p : MemWrite => Some(p.clockDomain)
