@@ -5,7 +5,9 @@ package build
 import mill._, mill.api._, scalalib._, publish._
 import build.project.SpinalVersion
 
-trait SpinalModule extends SbtModule with CrossSbtModule { outer =>
+type SpinalModuleInfo = Tuple2[Map[String, PublishModule], () => T[Seq[String]]]
+
+trait CrossSpinalModule extends SbtModule with CrossSbtModule { outer =>
   def scalatestVersion = "3.2.14"
   def scalacOptions = super.scalacOptions() ++ Seq("-unchecked", "-target:jvm-1.8")
   def javacOptions = super.javacOptions() ++ Seq("-source", "1.8", "-target", "1.8")
@@ -24,25 +26,9 @@ trait SpinalModule extends SbtModule with CrossSbtModule { outer =>
   }
   def testOnly(args: String*) = test.testOnly(args*)
 
-  def moduleInfo = SpinalModuleInfo(crossScalaVersion)
+  def moduleInfo: SpinalModuleInfo
   def moduleRefs = moduleInfo._1
   def modulePluginOptions = moduleInfo._2()
-}
-
-type SpinalModuleInfoType = Tuple2[Map[String, PublishModule], () => T[Seq[String]]]
-object SpinalModuleInfo {
-  def apply(crossScalaVersion: String) = (moduleDeps(crossScalaVersion), () => scalacOptions(crossScalaVersion))
-
-  def moduleDeps(crossScalaVersion: String): Map[String, PublishModule] = Map(
-    "core"        -> core(crossScalaVersion),
-    "lib"         -> lib(crossScalaVersion),
-    "sim"         -> sim(crossScalaVersion),
-    "idslpayload" -> idslpayload(crossScalaVersion),
-    "idslplugin"  -> idslplugin(crossScalaVersion),
-    "tester"      -> tester(crossScalaVersion)
-  )
-
-  def scalacOptions(crossScalaVersion: String) = idslplugin(crossScalaVersion).pluginOptions
 }
 
 trait SpinalPublishModule extends PublishModule {
@@ -61,15 +47,20 @@ trait SpinalPublishModule extends PublishModule {
   )
 }
 
-object idslpayload extends Cross[IdslPayload](SpinalVersion.compilers)
-trait IdslPayload extends SpinalModule with SpinalPublishModule {
+import sys.process._
+def gitHash(dir: os.Path) = (try {
+  s"git -C ${dir.toString} rev-parse HEAD".!!
+} catch {
+  case e: java.io.IOException => "???"
+}).linesIterator.next()
+
+trait IdslPayload extends CrossSpinalModule with SpinalPublishModule {
   def mainClass = Some("spinal.idslpayload")
   override def artifactName = "spinalhdl-idsl-payload"
   def mvnDeps = super.mvnDeps() ++ Seq(mvn"org.scala-lang:scala-reflect:${scalaVersion}")
 }
 
-object idslplugin extends Cross[IdslPlugin](SpinalVersion.compilers)
-trait IdslPlugin extends SpinalModule with SpinalPublishModule {
+trait IdslPlugin extends CrossSpinalModule with SpinalPublishModule {
   def mainClass = Some("spinal.idslplugin")
   override def artifactName = "spinalhdl-idsl-plugin"
   def moduleDeps = Seq(moduleRefs("idslpayload"))
@@ -77,10 +68,7 @@ trait IdslPlugin extends SpinalModule with SpinalPublishModule {
   def pluginOptions = Task { Seq(s"-Xplugin:${assembly().path}") }
 }
 
-object sim extends Cross[Sim](SpinalVersion.compilers){
-  def defaultCrossSegments = Seq(SpinalVersion.compilers.head)
-}
-trait Sim extends SpinalModule with SpinalPublishModule {
+trait Sim extends CrossSpinalModule with SpinalPublishModule {
   def mainClass = Some("spinal.sim")
   def mvnDeps = super.mvnDeps() ++ Seq(
     mvn"commons-io:commons-io:2.11.0",
@@ -91,10 +79,7 @@ trait Sim extends SpinalModule with SpinalPublishModule {
   def publishVersion = SpinalVersion.sim
 }
 
-object lib extends Cross[Lib](SpinalVersion.compilers){
-  def defaultCrossSegments = Seq(SpinalVersion.compilers.head)
-}
-trait Lib extends SpinalModule with SpinalPublishModule {
+trait Lib extends CrossSpinalModule with SpinalPublishModule {
   def mainClass = Some("spinal.lib")
   def moduleDeps = Seq(moduleRefs("core"), moduleRefs("sim"))
   def scalacOptions = super.scalacOptions() ++ modulePluginOptions()
@@ -103,17 +88,7 @@ trait Lib extends SpinalModule with SpinalPublishModule {
   def publishVersion = SpinalVersion.lib
 }
 
-import sys.process._
-def gitHash(dir: os.Path) = (try {
-  s"git -C ${dir.toString} rev-parse HEAD".!!
-} catch {
-  case e: java.io.IOException => "???"
-}).linesIterator.next()
-
-object core extends Cross[Core](SpinalVersion.compilers){
-  def defaultCrossSegments = Seq(SpinalVersion.compilers.head)
-}
-trait Core extends SpinalModule with SpinalPublishModule {
+trait Core extends CrossSpinalModule with SpinalPublishModule {
   def mainClass = Some("spinal.core")
   def moduleDeps = Seq(moduleRefs("idslplugin"), moduleRefs("sim"))
 
@@ -139,13 +114,59 @@ trait Core extends SpinalModule with SpinalPublishModule {
   }
 }
 
-object tester extends Cross[Tester](SpinalVersion.compilers){
-  def defaultCrossSegments = Seq(SpinalVersion.compilers.head)
-}
-trait Tester extends SpinalModule with SpinalPublishModule {
+trait Tester extends CrossSpinalModule with SpinalPublishModule {
   def mainClass = Some("spinal.tester")
   def moduleDeps = Seq(moduleRefs("core"), moduleRefs("sim"), moduleRefs("lib"))
   def scalacOptions = super.scalacOptions() ++ modulePluginOptions()
   def mvnDeps = super.mvnDeps() ++ Seq(mvn"org.scalatest::scalatest:${scalatestVersion}")
   def publishVersion = SpinalVersion.tester
 }
+
+object SpinalModuleInfo {
+  def apply(crossScalaVersion: String) = (moduleDeps(crossScalaVersion), () => scalacOptions(crossScalaVersion))
+
+  def moduleDeps(crossScalaVersion: String): Map[String, PublishModule] = Map(
+    "core"        -> core(crossScalaVersion),
+    "lib"         -> lib(crossScalaVersion),
+    "sim"         -> sim(crossScalaVersion),
+    "idslpayload" -> idslpayload(crossScalaVersion),
+    "idslplugin"  -> idslplugin(crossScalaVersion),
+    "tester"      -> tester(crossScalaVersion)
+  )
+
+  def scalacOptions(crossScalaVersion: String) = idslplugin(crossScalaVersion).pluginOptions
+}
+
+trait SpinalModule { this: CrossSpinalModule =>
+  def moduleInfo = SpinalModuleInfo(crossScalaVersion)
+}
+
+object idslpayload extends Cross[SpinalIdslPayload](SpinalVersion.compilers)
+trait SpinalIdslPayload extends IdslPayload with SpinalModule
+
+object idslplugin extends Cross[SpinalIdslPlugin](SpinalVersion.compilers)
+trait SpinalIdslPlugin extends IdslPlugin with SpinalModule
+
+
+object sim extends Cross[SpinalSim](SpinalVersion.compilers){
+  def defaultCrossSegments = Seq(SpinalVersion.compilers.head)
+}
+trait SpinalSim extends Sim with SpinalModule
+
+
+object lib extends Cross[SpinalLib](SpinalVersion.compilers){
+  def defaultCrossSegments = Seq(SpinalVersion.compilers.head)
+}
+trait SpinalLib extends Lib with SpinalModule
+
+
+object core extends Cross[SpinalCore](SpinalVersion.compilers){
+  def defaultCrossSegments = Seq(SpinalVersion.compilers.head)
+}
+trait SpinalCore extends Core with SpinalModule
+
+
+object tester extends Cross[SpinalTester](SpinalVersion.compilers){
+  def defaultCrossSegments = Seq(SpinalVersion.compilers.head)
+}
+trait SpinalTester extends Tester with SpinalModule
